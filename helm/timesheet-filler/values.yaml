@@ -3,7 +3,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.com/hy3n4/timesheet-filler
+  repository: ghcr.io/hy3n4/timesheet-filler
   pullPolicy: IfNotPresent
   tag: latest
 

@@ -19,7 +19,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN go build -o excelapp
+RUN go build -o timesheet-filler
 
 # ---- Run Stage ----
 FROM alpine:latest
@@ -31,7 +31,7 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /app
 
 # Copy the compiled binary from the builder stage
-COPY --from=builder /app/excelapp .
+COPY --from=builder /app/timesheet-filler .
 
 # Copy templates and necessary files
 COPY templates ./templates
@@ -41,4 +41,4 @@ COPY gorily_timesheet_template_2024.xlsx .
 EXPOSE 8080
 
 # Run the application
-CMD ["./excelapp"]
+CMD ["./timesheet-filler"]
