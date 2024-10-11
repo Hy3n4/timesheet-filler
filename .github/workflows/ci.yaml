@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI Pipeline
 
 on:
   push:
@@ -8,57 +8,35 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
-          go-version: '1.23'
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Cache Go modules
-        uses: actions/cache@v3
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
-          path: |
-            ~/.cache/go-build
-            **/go.sum
-          key: ${{ runner.OS }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.OS }}-go-
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch,suffix=-{{sha}}
 
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Build binary
-        run: go build -v -o excelapp
-
-      - name: Test application
-        run: go test -v ./...
-
-      - name: Build Docker image
-        run: docker build -t yourusername/excelapp:${{ github.sha }} .
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
+      - name: Build and push Docker image
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Push Docker image
-        run: docker push yourusername/excelapp:${{ github.sha }}
-
-      - name: Set up Kubeconfig
-        uses: azure/k8s-set-context@v2.1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-
-      - name: Deploy to Kubernetes
-        run: |
-          helm upgrade --install excelapp helm/excelapp \
-            --set image.tag=${{ github.sha }} \
-            --set image.repository=yourusername/excelapp
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
