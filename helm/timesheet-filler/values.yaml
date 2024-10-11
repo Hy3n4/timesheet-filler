@@ -1,10 +1,10 @@
-# Default values for excelapp.
+# Default values for timesheet-filler.
 
 replicaCount: 1
 
 image:
   repository: ghcr.io/hy3n4/timesheet-filler
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: latest
 
 service:
@@ -13,15 +13,22 @@ service:
   targetPort: 8080
 
 ingress:
-  enabled: false
-  className: ""
-  annotations: {}
+  enabled: true
+  className: "default-nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    external-dns.alpha.kubernetes.io/hostname: gorily.hy3n4.com
+    external-dns.alpha.kubernetes.io/ttl: "300"
   hosts:
-    - host: timesheet-filler.local
+    - host: gorily.hy3n4.com
       paths:
         - path: /
           pathType: Prefix
-  tls: []
+  tls:
+  - hosts:
+    - gorily.hy3n4.com
+    secretName: gorily-ingress-tls
 
 resources:
   limits:

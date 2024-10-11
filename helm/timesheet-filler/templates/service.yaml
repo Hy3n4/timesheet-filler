@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-excelapp
+  name: {{ .Release.Name }}-timesheet-filler
   labels:
-    app: excelapp
+    app: timesheet-filler
     release: {{ .Release.Name }}
 spec:
   type: {{ .Values.service.type }}
@@ -13,5 +13,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: excelapp
+    app: timesheet-filler
     release: {{ .Release.Name }}

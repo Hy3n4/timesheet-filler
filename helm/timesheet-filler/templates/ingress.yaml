@@ -2,7 +2,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-excelapp
+  name: {{ .Release.Name }}-timesheet-filler
   annotations:
     {{- toYaml .Values.ingress.annotations | nindent 4 }}
 spec:
@@ -17,7 +17,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ $.Release.Name }}-excelapp
+                name: {{ $.Release.Name }}-timesheet-filler
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}

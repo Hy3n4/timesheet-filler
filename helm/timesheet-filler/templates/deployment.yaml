@@ -2,24 +2,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-excelapp
+  name: {{ .Release.Name }}-timesheet-filler
   labels:
-    app: excelapp
+    app: timesheet-filler
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: excelapp
+      app: timesheet-filler
       release: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: excelapp
+        app: timesheet-filler
         release: {{ .Release.Name }}
     spec:
       containers:
-        - name: excelapp
+        - name: timesheet-filler
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

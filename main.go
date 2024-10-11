@@ -23,7 +23,7 @@ import (
 const (
 	sourceSheetName  = "docházka realizačního týmu"
 	targetSheetName  = "výkaz práce"
-	templateFilePath = "/Users/patrikchadima/Downloads/gorily_timesheet_template_2024.xlsx"
+	templateFilePath = "gorily_timesheet_template_2024.xlsx"
 	idxClen          = 1  // Člen column
 	idxAttended      = 6  // Attendace was confirmed
 	idxTypUdalosti   = 8  // Typ události
@@ -245,11 +245,12 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	processedFile, err := processExcelFile(fileDataStruct.Data, name, month)
 	if err != nil {
 		tmplData := SelectTemplateData{
-			Error:     "An error occurred while processing the Excel file.",
+			Error:     "An error occurred while processing the Excel file." + err.Error(),
 			FileToken: fileToken,
 			Names:     fileDataStruct.Names,
 			Months:    fileDataStruct.Months,
 		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		renderTemplate(w, "select.html", tmplData)
 		return
