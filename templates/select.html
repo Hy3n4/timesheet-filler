@@ -22,6 +22,16 @@
         .container {
             max-width: 600px;
             margin-top: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .form-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 100%;
         }
         h1 {
             color: #e94e1b;
@@ -34,39 +44,41 @@
     </style>
 </head>
 <body>
-    <div class="container text-center">
-        <!-- Logo -->
-        <img src="https://gorilyplzen.eoscms.cz/webimages/club_logo_filename_20221007_152758.png" alt="Logo" class="logo mb-3">
-        <h1>Select Name and Month</h1>
+    <div class="container">
+        <div class="form-container text-center">
+            <!-- Logo -->
+            <img src="https://gorilyplzen.eoscms.cz/webimages/club_logo_filename_20221007_152758.png" alt="Logo" class="logo mb-3">
+            <h1>Select Name and Month</h1>
 
-        <!-- Error Alert -->
-        {{if .Error}}
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            {{.Error}}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <!-- Error Alert -->
+            {{if .Error}}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{.Error}}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {{end}}
+
+            <form action="/process" method="post">
+                <input type="hidden" name="fileToken" value="{{.FileToken}}">
+                <div class="mb-3 text-start">
+                    <label for="name" class="form-label">Select Name:</label>
+                    <select id="name" name="name" required class="form-select">
+                        {{range .Names}}
+                        <option value="{{.}}">{{.}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                <div class="mb-3 text-start">
+                    <label for="month" class="form-label">Select Month:</label>
+                    <select id="month" name="month" required class="form-select">
+                        {{range $index, $month := .Months}}
+                        <option value="{{.}}" {{if eq $.DefaultMonth .}}selected{{end}}>{{.}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-custom">Process</button>
+            </form>
         </div>
-        {{end}}
-
-        <form action="/process" method="post">
-            <input type="hidden" name="fileToken" value="{{.FileToken}}">
-            <div class="mb-3">
-                <label for="name" class="form-label">Select Name:</label>
-                <select id="name" name="name" required class="form-select">
-                    {{range .Names}}
-                    <option value="{{.}}">{{.}}</option>
-                    {{end}}
-                </select>
-            </div>
-            <div class="mb-3">
-                <label for="month" class="form-label">Select Month:</label>
-                <select id="month" name="month" required class="form-select">
-                    {{range .Months}}
-                    <option value="{{.}}">{{.}}</option>
-                    {{end}}
-                </select>
-            </div>
-            <button type="submit" class="btn btn-custom">Process</button>
-        </form>
     </div>
 
     <!-- Bootstrap JS -->

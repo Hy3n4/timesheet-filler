@@ -22,6 +22,16 @@
         .container {
             max-width: 600px;
             margin-top: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .form-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 100%;
         }
         h1 {
             color: #e94e1b;
@@ -34,26 +44,28 @@
     </style>
 </head>
 <body>
-    <div class="container text-center">
-        <!-- Logo -->
-        <img src="https://gorilyplzen.eoscms.cz/webimages/club_logo_filename_20221007_152758.png" alt="Logo" class="logo mb-3">
-        <h1>Upload Excel File</h1>
+    <div class="container">
+        <div class="form-container text-center">
+            <!-- Logo -->
+            <img src="https://gorilyplzen.eoscms.cz/webimages/club_logo_filename_20221007_152758.png" alt="Logo" class="logo mb-3">
+            <h1>Upload Excel File</h1>
 
-        <!-- Error Alert -->
-        {{if .Error}}
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            {{.Error}}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {{end}}
-
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            <div class="mb-3">
-                <label for="excelFile" class="form-label">Select Excel File:</label>
-                <input type="file" id="excelFile" name="excelFile" accept=".xlsx" required class="form-control">
+            <!-- Error Alert -->
+            {{if .Error}}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{.Error}}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
-            <button type="submit" class="btn btn-custom">Upload</button>
-        </form>
+            {{end}}
+
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <div class="mb-3 text-start">
+                    <label for="excelFile" class="form-label">Select Excel File:</label>
+                    <input type="file" id="excelFile" name="excelFile" accept=".xlsx" required class="form-control">
+                </div>
+                <button type="submit" class="btn btn-custom">Next</button>
+            </form>
+        </div>
     </div>
 
     <!-- Bootstrap JS (Optionally include Popper.js for dropdowns, tooltips, and popovers) -->
