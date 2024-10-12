@@ -62,6 +62,12 @@ type FileData struct {
 	Months []string
 }
 
+// Create data structure
+type TemplateData struct {
+	Data        interface{}
+	CurrentYear int
+}
+
 var (
 	fileStore   = make(map[string]FileData)
 	fileStoreMu sync.RWMutex
@@ -92,18 +98,28 @@ func uploadFormHandler(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "upload.html", nil)
 }
 
-func renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
-	tmplPath := filepath.Join("templates", templateName)
-	tmpl, err := template.ParseFiles(tmplPath)
+func renderTemplate(w http.ResponseWriter, tmplName string, data interface{}) {
+	tmpl, err := template.New("").Funcs(template.FuncMap{
+		// Define any custom functions here
+	}).ParseFiles(
+		"templates/layout.html",
+		filepath.Join("templates", tmplName),
+	)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		log.Printf("Error parsing template %s: %v", templateName, err)
+		log.Printf("Error parsing templates: %v", err)
 		return
 	}
 
-	if err := tmpl.Execute(w, data); err != nil {
+	tmplData := TemplateData{
+		Data:        data,
+		CurrentYear: time.Now().Year(),
+	}
+
+	err = tmpl.ExecuteTemplate(w, "layout", tmplData)
+	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		log.Printf("Error executing template %s: %v", templateName, err)
+		log.Printf("Error executing template: %v", err)
 	}
 }
 
