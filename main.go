@@ -57,7 +57,10 @@ type EditTemplateData struct {
 type DownloadTemplateData struct {
 	BaseTemplateData
 	DownloadToken string
-	Filename      string
+	FileName      string
+	FileToken     string
+	Name          string
+	Month         string
 }
 
 type TableRow struct {
@@ -79,10 +82,16 @@ type TemplateData struct {
 	CurrentYear int
 }
 
+type TempFileEntry struct {
+	Data      []byte
+	Filename  string
+	Timestamp time.Time
+}
+
 var (
 	fileStore       = make(map[string]FileData)
 	fileStoreMu     sync.RWMutex
-	tempFileStore   = make(map[string][]byte)
+	tempFileStore   = make(map[string]TempFileEntry)
 	tempFileStoreMu sync.RWMutex
 )
 
@@ -92,8 +101,6 @@ func main() {
 	http.HandleFunc("/edit", editHandler)
 	http.HandleFunc("/process", processHandler)
 	http.HandleFunc("/download/", downloadHandler)
-
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	log.Println("Server started on http://localhost:8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -298,8 +305,6 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Table Data: %s", tableData)
-
 	// If no data was found, initialize with an empty row
 	if len(tableData) == 0 {
 		tableData = []TableRow{
@@ -330,7 +335,7 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
+		http.Error(w, "Bad Request in process handler", http.StatusBadRequest)
 		return
 	}
 
@@ -338,13 +343,23 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	monthStr := r.FormValue("month")
 
-	log.Printf("processHandler: fileToken=%s, name=%s, month=%s", fileToken, name, monthStr)
-
 	if fileToken == "" || name == "" || monthStr == "" {
 		tmplData := BaseTemplateData{
-			Error: "Missing required fields.",
+			Error: "Missing required fields in process handler.",
 		}
 		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
+		return
+	}
+
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		tmplData := EditTemplateData{
+			BaseTemplateData: BaseTemplateData{
+				Error: "Invalid month value.",
+			},
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		renderTemplate(w, "upload.html", tmplData, http.StatusNotFound)
 		return
 	}
 
@@ -378,20 +393,8 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Retrieve the stored file data
-	fileStoreMu.RLock()
-	fileDataStruct, ok := fileStore[fileToken]
-	fileStoreMu.RUnlock()
-	if !ok {
-		tmplData := BaseTemplateData{
-			Error: "Invalid session. Please re-upload your file.",
-		}
-		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
-		return
-	}
-
 	// Use the processExcelFile function, adjusted to include edits
-	processedFile, err := processExcelFile(fileDataStruct.Data, name, tableData)
+	processedFile, err := processExcelFile(name, tableData)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Printf("Error processing Excel file: %v", err)
@@ -402,12 +405,12 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	firstname, lastname := helpers.SplitName(name)
 	cleanFirstname := helpers.RemoveDiacritics(firstname)
 	cleanLastname := helpers.RemoveDiacritics(lastname)
-	filename := fmt.Sprintf("Gorily_vykaz-prace_%s2024_%s_%s.xlsx", monthStr, cleanFirstname, cleanLastname)
+	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d2024_%s_%s.xlsx", month, cleanFirstname, cleanLastname)
 	filename = helpers.SanitizeFilename(filename)
 
 	downloadToken := helpers.GenerateFileToken()
 
-	err = storeGeneratedFile(downloadToken, processedFile)
+	err = storeGeneratedFile(downloadToken, processedFile, filename)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Printf("Error storing generated file: %v", err)
@@ -416,8 +419,9 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to the download page or render the download template
 	tmplData := DownloadTemplateData{
-		DownloadToken: downloadToken,
-		Filename:      filename,
+		BaseTemplateData: BaseTemplateData{},
+		DownloadToken:    downloadToken,
+		FileName:         filename,
 	}
 	renderTemplate(w, "download.html", tmplData, http.StatusOK)
 }
@@ -425,18 +429,6 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract the download token from the URL path
 	token := strings.TrimPrefix(r.URL.Path, "/download/")
-
-	fileToken := r.FormValue("fileToken")
-	name := r.FormValue("name")
-	monthStr := r.FormValue("month")
-
-	if fileToken == "" || name == "" || monthStr == "" {
-		tmplData := BaseTemplateData{
-			Error: "Missing required fields.",
-		}
-		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
-		return
-	}
 
 	// Validate the token
 	if token == "" {
@@ -446,31 +438,19 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Retrieve the file data from temporary storage
 	tempFileStoreMu.RLock()
-	fileData, ok := tempFileStore[token]
+	fileEntry, ok := tempFileStore[token]
 	tempFileStoreMu.RUnlock()
 	if !ok {
 		http.Error(w, "File Not Found", http.StatusNotFound)
 		return
 	}
 
-	// Optionally, clean up the file after serving
-	// tempFileStoreMu.Lock()
-	// delete(tempFileStore, token)
-	// tempFileStoreMu.Unlock()
-
-	// Generate filename
-	firstname, lastname := helpers.SplitName(name)
-	cleanFirstname := helpers.RemoveDiacritics(firstname)
-	cleanLastname := helpers.RemoveDiacritics(lastname)
-	filename := fmt.Sprintf("Gorily_vykaz-prace_%s2024_%s_%s.xlsx", monthStr, cleanFirstname, cleanLastname)
-	filename = helpers.SanitizeFilename(filename)
-
 	// Set headers for file download
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileEntry.Filename))
 
 	// Write the file data to the response
-	_, err := w.Write(fileData)
+	_, err := w.Write(fileEntry.Data)
 	if err != nil {
 		log.Printf("Error sending file: %v", err)
 	}
@@ -480,95 +460,6 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	delete(tempFileStore, token)
 	tempFileStoreMu.Unlock()
 }
-
-// func processHandler(w http.ResponseWriter, r *http.Request) {
-// 	if r.Method != http.MethodPost {
-// 		tmplData := UploadTemplateData{
-// 			Error: "Method Not Allowed",
-// 		}
-// 		w.WriteHeader(http.StatusMethodNotAllowed)
-// 		renderTemplate(w, "upload.html", tmplData)
-// 		return
-// 	}
-
-// 	// Get form values
-// 	name := r.FormValue("name")
-// 	monthStr := r.FormValue("month")
-// 	fileToken := r.FormValue("fileToken")
-
-// 	if name == "" || monthStr == "" || fileToken == "" {
-// 		tmplData := UploadTemplateData{
-// 			Error: "All fields are required.",
-// 		}
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		renderTemplate(w, "upload.html", tmplData)
-// 		return
-// 	}
-
-// 	month, err := strconv.Atoi(monthStr)
-// 	if err != nil || month < 1 || month > 12 {
-// 		tmplData := UploadTemplateData{
-// 			Error: "Invalid month value.",
-// 		}
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		renderTemplate(w, "upload.html", tmplData)
-// 		return
-// 	}
-
-// 	// Retrieve the stored file data
-// 	fileStoreMu.RLock()
-// 	fileDataStruct, ok := fileStore[fileToken]
-// 	fileStoreMu.RUnlock()
-// 	if !ok {
-// 		tmplData := UploadTemplateData{
-// 			Error: "Invalid session. Please re-upload your file.",
-// 		}
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		renderTemplate(w, "upload.html", tmplData)
-// 		return
-// 	}
-
-// 	// Process the Excel file
-// 	processedFile, err := processExcelFile(fileDataStruct.Data, name, month)
-// 	if err != nil {
-// 		tmplData := SelectTemplateData{
-// 			Error:        "An error occurred while processing the Excel file.",
-// 			FileToken:    fileToken,
-// 			Names:        fileDataStruct.Names,
-// 			Months:       fileDataStruct.Months,
-// 			DefaultMonth: strconv.Itoa(month),
-// 		}
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		renderTemplate(w, "select.html", tmplData)
-// 		return
-// 	}
-
-// 	// Extract firstname and lastname
-// 	firstname, lastname := helpers.SplitName(name)
-
-// 	// Remove diacritics
-// 	cleanFirstname := helpers.RemoveDiacritics(firstname)
-// 	cleanLastname := helpers.RemoveDiacritics(lastname)
-
-// 	// Format the filename
-// 	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d2024_%s_%s.xlsx", month, cleanFirstname, cleanLastname)
-// 	filename = helpers.SanitizeFilename(filename)
-// 	// Set headers for file download
-// 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-// 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
-
-// 	// Write the processed file to the response
-// 	if err := processedFile.Write(w); err != nil {
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		log.Printf("Error sending file: %v", err)
-// 		return
-// 	}
-
-//		// Optionally, clean up the stored file data
-//		fileStoreMu.Lock()
-//		delete(fileStore, fileToken)
-//		fileStoreMu.Unlock()
-//	}
 
 func extractTableData(fileData []byte, name string, month int) ([]TableRow, error) {
 	srcFile, err := excelize.OpenReader(bytes.NewReader(fileData))
@@ -714,7 +605,7 @@ func generateExcelReport(tableData []map[string]interface{}, name string, month 
 	return tmplFile, nil
 }
 
-func processExcelFile(fileData []byte, filterName string, tableData []TableRow) (*excelize.File, error) {
+func processExcelFile(filterName string, tableData []TableRow) (*excelize.File, error) {
 	// Load the existing Excel template
 	templateFile, err := excelize.OpenFile(templateFilePath)
 	if err != nil {
@@ -785,7 +676,7 @@ func processExcelFile(fileData []byte, filterName string, tableData []TableRow) 
 	return templateFile, nil
 }
 
-func storeGeneratedFile(token string, file *excelize.File) error {
+func storeGeneratedFile(token string, file *excelize.File, fileName string) error {
 	// Create a buffer to hold the file data
 	buf := new(bytes.Buffer)
 	if err := file.Write(buf); err != nil {
@@ -794,7 +685,11 @@ func storeGeneratedFile(token string, file *excelize.File) error {
 
 	// Store the buffer in a temporary map or file system
 	tempFileStoreMu.Lock()
-	tempFileStore[token] = buf.Bytes()
+	tempFileStore[token] = TempFileEntry{
+		Data:      buf.Bytes(),
+		Filename:  fileName,
+		Timestamp: time.Now(),
+	}
 	tempFileStoreMu.Unlock()
 
 	// Optionally, set an expiration time for the token
