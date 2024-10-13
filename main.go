@@ -2,25 +2,20 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
+	"timesheet-filler/helpers"
 
 	"github.com/xuri/excelize/v2"
-	"golang.org/x/text/unicode/norm"
 )
 
 // Define constants
@@ -34,14 +29,17 @@ const (
 	idxNazevUdalosti = 9  // Název události
 	idxDatum1        = 11 // Start datetime column
 	idxDatum2        = 12 // End datetime column
+	timeFormat       = "15:04"
+	dateFormat       = "02.01.2006"
+	dateParseFormat  = "2006-01-02"
 )
 
-type UploadTemplateData struct {
+type BaseTemplateData struct {
 	Error string
 }
 
 type SelectTemplateData struct {
-	Error        string
+	BaseTemplateData
 	FileToken    string
 	Names        []string
 	Months       []string
@@ -49,11 +47,27 @@ type SelectTemplateData struct {
 }
 
 type EditTemplateData struct {
-	Error     string
+	BaseTemplateData
 	FileToken string
 	Name      string
 	Month     string
-	TableData template.JS
+	TableData []TableRow
+}
+
+type DownloadTemplateData struct {
+	BaseTemplateData
+	DownloadToken string
+	FileName      string
+	FileToken     string
+	Name          string
+	Month         string
+}
+
+type TableRow struct {
+	Date      string
+	StartTime string
+	EndTime   string
+	Note      string
 }
 
 type FileData struct {
@@ -68,9 +82,17 @@ type TemplateData struct {
 	CurrentYear int
 }
 
+type TempFileEntry struct {
+	Data      []byte
+	Filename  string
+	Timestamp time.Time
+}
+
 var (
-	fileStore   = make(map[string]FileData)
-	fileStoreMu sync.RWMutex
+	fileStore       = make(map[string]FileData)
+	fileStoreMu     sync.RWMutex
+	tempFileStore   = make(map[string]TempFileEntry)
+	tempFileStoreMu sync.RWMutex
 )
 
 func main() {
@@ -78,6 +100,7 @@ func main() {
 	http.HandleFunc("/upload", uploadFileHandler)
 	http.HandleFunc("/edit", editHandler)
 	http.HandleFunc("/process", processHandler)
+	http.HandleFunc("/download/", downloadHandler)
 
 	log.Println("Server started on http://localhost:8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -87,18 +110,18 @@ func main() {
 
 func uploadFormHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed)
 		return
 	}
 
-	renderTemplate(w, "upload.html", nil)
+	renderTemplate(w, "upload.html", nil, http.StatusOK)
 }
 
-func renderTemplate(w http.ResponseWriter, tmplName string, data interface{}) {
+func renderTemplate(w http.ResponseWriter, tmplName string, data interface{}, statusCode int) {
 	tmpl, err := template.New("").Funcs(template.FuncMap{
 		// Define any custom functions here
 	}).ParseFiles(
@@ -125,21 +148,21 @@ func renderTemplate(w http.ResponseWriter, tmplName string, data interface{}) {
 
 func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Limit the size of the uploaded file to 16MB
 	if err := r.ParseMultipartForm(16 << 20); err != nil {
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "Bad Request: Unable to parse form data.",
 		}
 		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
 		log.Printf("Error parsing form data: %v", err)
 		return
 	}
@@ -147,11 +170,11 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Retrieve the uploaded file
 	file, header, err := r.FormFile("excelFile")
 	if err != nil {
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "Bad Request: Unable to retrieve file.",
 		}
 		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
 		log.Printf("Error retrieving file: %v", err)
 		return
 	}
@@ -163,11 +186,11 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Read the file into a buffer
 	buf := &bytes.Buffer{}
 	if _, err := io.Copy(buf, file); err != nil {
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "Internal Server Error: Unable to read file.",
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
 		log.Printf("Error reading file: %v", err)
 		return
 	}
@@ -177,11 +200,11 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the Excel file to get the list of names and months
 	names, monthsInt, err := parseExcelForNamesAndMonths(fileData)
 	if err != nil {
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "Internal Server Error: Unable to parse Excel file.",
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
 		log.Printf("Error parsing Excel file: %v", err)
 		return
 	}
@@ -198,7 +221,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the fileData along with names and months using a unique token
-	fileToken := generateFileToken()
+	fileToken := helpers.GenerateFileToken()
 	fileStoreMu.Lock()
 	fileStore[fileToken] = FileData{
 		Data:   fileData,
@@ -209,7 +232,6 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare data for the template
 	tmplData := SelectTemplateData{
-		Error:        "", // No error message
 		FileToken:    fileToken,
 		Names:        names,
 		Months:       months,
@@ -217,7 +239,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Serve the selection form
-	renderTemplate(w, "select.html", tmplData)
+	renderTemplate(w, "select.html", tmplData, http.StatusOK)
 }
 
 func editHandler(w http.ResponseWriter, r *http.Request) {
@@ -232,26 +254,10 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 	fileToken := r.FormValue("fileToken")
 
 	if name == "" || monthStr == "" || fileToken == "" {
-		// Handle error
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "All fields are required.",
 		}
-		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "upload.html", tmplData)
-		return
-	}
-
-	month, err := strconv.Atoi(monthStr)
-	if err != nil || month < 1 || month > 12 {
-		// Handle error
-		tmplData := SelectTemplateData{
-			Error:     "Invalid month value.",
-			FileToken: fileToken,
-			Names:     []string{}, // Retrieve from session or fileStore
-			Months:    []string{},
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "select.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
 		return
 	}
 
@@ -260,139 +266,202 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 	fileDataStruct, ok := fileStore[fileToken]
 	fileStoreMu.RUnlock()
 	if !ok {
-		// Handle error
-		tmplData := UploadTemplateData{
+		tmplData := BaseTemplateData{
 			Error: "Invalid session. Please re-upload your file.",
 		}
-		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
 		return
 	}
 
-	// Extract relevant data for the selected name and month
+	// Parse the month string to integer
+	month, err := helpers.ParseMonth(monthStr)
+	if err != nil {
+		tmplData := SelectTemplateData{
+			BaseTemplateData: BaseTemplateData{
+				Error: "Invalid month selected.",
+			},
+			FileToken:    fileToken,
+			Names:        fileDataStruct.Names,
+			Months:       fileDataStruct.Months,
+			DefaultMonth: monthStr,
+		}
+		renderTemplate(w, "select.html", tmplData, http.StatusBadRequest)
+		return
+	}
+
+	// Extract data from the uploaded Excel file
 	tableData, err := extractTableData(fileDataStruct.Data, name, month)
 	if err != nil {
-		// Handle error
 		tmplData := SelectTemplateData{
-			Error:     "Failed to extract data.",
-			FileToken: fileToken,
-			Names:     fileDataStruct.Names,
-			Months:    fileDataStruct.Months,
+			BaseTemplateData: BaseTemplateData{
+				Error: fmt.Sprintf("Failed to extract data: %v", err),
+			},
+			FileToken:    fileToken,
+			Names:        fileDataStruct.Names,
+			Months:       fileDataStruct.Months,
+			DefaultMonth: monthStr,
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		renderTemplate(w, "select.html", tmplData)
+		renderTemplate(w, "select.html", tmplData, http.StatusInternalServerError)
 		return
 	}
 
-	// Serialize table data to JSON
-	tableDataJSON, err := json.Marshal(tableData)
-	if err != nil {
-		// Handle error
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+	// If no data was found, initialize with an empty row
+	if len(tableData) == 0 {
+		tableData = []TableRow{
+			{
+				Date:      "",
+				StartTime: "",
+				EndTime:   "",
+				Note:      "",
+			},
+		}
 	}
 
 	tmplData := EditTemplateData{
-		Error:     "",
 		FileToken: fileToken,
 		Name:      name,
-		Month:     strconv.Itoa(month),
-		TableData: template.JS(tableDataJSON),
+		Month:     monthStr,
+		TableData: tableData,
 	}
 
-	renderTemplate(w, "edit.html", tmplData)
+	renderTemplate(w, "edit.html", tmplData, http.StatusOK)
 }
 
 func processHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		tmplData := UploadTemplateData{
-			Error: "Method Not Allowed",
-		}
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		renderTemplate(w, "upload.html", tmplData)
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Get form values
+	// Parse form data
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad Request in process handler", http.StatusBadRequest)
+		return
+	}
+
+	fileToken := r.FormValue("fileToken")
 	name := r.FormValue("name")
 	monthStr := r.FormValue("month")
-	fileToken := r.FormValue("fileToken")
 
-	if name == "" || monthStr == "" || fileToken == "" {
-		tmplData := UploadTemplateData{
-			Error: "All fields are required.",
+	if fileToken == "" || name == "" || monthStr == "" {
+		tmplData := BaseTemplateData{
+			Error: "Missing required fields in process handler.",
 		}
-		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
 		return
 	}
 
 	month, err := strconv.Atoi(monthStr)
 	if err != nil || month < 1 || month > 12 {
-		tmplData := UploadTemplateData{
-			Error: "Invalid month value.",
+		tmplData := EditTemplateData{
+			BaseTemplateData: BaseTemplateData{
+				Error: "Invalid month value.",
+			},
 		}
 		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "upload.html", tmplData, http.StatusNotFound)
 		return
 	}
 
-	// Retrieve the stored file data
-	fileStoreMu.RLock()
-	fileDataStruct, ok := fileStore[fileToken]
-	fileStoreMu.RUnlock()
-	if !ok {
-		tmplData := UploadTemplateData{
-			Error: "Invalid session. Please re-upload your file.",
+	// Retrieve table data from form
+	dates := r.Form["date[]"]
+	startTimes := r.Form["start_time[]"]
+	endTimes := r.Form["end_time[]"]
+	notes := r.Form["note[]"]
+
+	if len(dates) == 0 {
+		tmplData := EditTemplateData{
+			BaseTemplateData: BaseTemplateData{
+				Error: "Please enter at least one row of data.",
+			},
+			FileToken: fileToken,
+			Name:      name,
+			Month:     monthStr,
 		}
-		w.WriteHeader(http.StatusBadRequest)
-		renderTemplate(w, "upload.html", tmplData)
+		renderTemplate(w, "edit.html", tmplData, http.StatusOK)
 		return
 	}
 
-	// Process the Excel file
-	processedFile, err := processExcelFile(fileDataStruct.Data, name, month)
+	// Prepare data for processing
+	var tableData []TableRow
+	for i := range dates {
+		tableData = append(tableData, TableRow{
+			Date:      dates[i],
+			StartTime: startTimes[i],
+			EndTime:   endTimes[i],
+			Note:      notes[i],
+		})
+	}
+
+	// Use the processExcelFile function, adjusted to include edits
+	processedFile, err := processExcelFile(name, tableData)
 	if err != nil {
-		tmplData := SelectTemplateData{
-			Error:        "An error occurred while processing the Excel file.",
-			FileToken:    fileToken,
-			Names:        fileDataStruct.Names,
-			Months:       fileDataStruct.Months,
-			DefaultMonth: strconv.Itoa(month),
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		renderTemplate(w, "select.html", tmplData)
-		return
-	}
-
-	// Extract firstname and lastname
-	firstname, lastname := splitName(name)
-
-	// Remove diacritics
-	cleanFirstname := removeDiacritics(firstname)
-	cleanLastname := removeDiacritics(lastname)
-
-	// Format the filename
-	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d2024_%s_%s.xlsx", month, cleanFirstname, cleanLastname)
-	filename = sanitizeFilename(filename)
-	// Set headers for file download
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
-
-	// Write the processed file to the response
-	if err := processedFile.Write(w); err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		log.Printf("Error sending file: %v", err)
+		log.Printf("Error processing Excel file: %v", err)
 		return
 	}
 
-	// Optionally, clean up the stored file data
-	fileStoreMu.Lock()
-	delete(fileStore, fileToken)
-	fileStoreMu.Unlock()
+	// Generate filename
+	firstname, lastname := helpers.SplitName(name)
+	cleanFirstname := helpers.RemoveDiacritics(firstname)
+	cleanLastname := helpers.RemoveDiacritics(lastname)
+	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d2024_%s_%s.xlsx", month, cleanFirstname, cleanLastname)
+	filename = helpers.SanitizeFilename(filename)
+
+	downloadToken := helpers.GenerateFileToken()
+
+	err = storeGeneratedFile(downloadToken, processedFile, filename)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Printf("Error storing generated file: %v", err)
+		return
+	}
+
+	// Redirect to the download page or render the download template
+	tmplData := DownloadTemplateData{
+		BaseTemplateData: BaseTemplateData{},
+		DownloadToken:    downloadToken,
+		FileName:         filename,
+	}
+	renderTemplate(w, "download.html", tmplData, http.StatusOK)
 }
 
-func extractTableData(fileData []byte, name string, month int) ([]map[string]interface{}, error) {
+func downloadHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract the download token from the URL path
+	token := strings.TrimPrefix(r.URL.Path, "/download/")
+
+	// Validate the token
+	if token == "" {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	// Retrieve the file data from temporary storage
+	tempFileStoreMu.RLock()
+	fileEntry, ok := tempFileStore[token]
+	tempFileStoreMu.RUnlock()
+	if !ok {
+		http.Error(w, "File Not Found", http.StatusNotFound)
+		return
+	}
+
+	// Set headers for file download
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileEntry.Filename))
+
+	// Write the file data to the response
+	_, err := w.Write(fileEntry.Data)
+	if err != nil {
+		log.Printf("Error sending file: %v", err)
+	}
+
+	// Clean up the stored file
+	tempFileStoreMu.Lock()
+	delete(tempFileStore, token)
+	tempFileStoreMu.Unlock()
+}
+
+func extractTableData(fileData []byte, name string, month int) ([]TableRow, error) {
 	srcFile, err := excelize.OpenReader(bytes.NewReader(fileData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
@@ -406,29 +475,46 @@ func extractTableData(fileData []byte, name string, month int) ([]map[string]int
 		return nil, fmt.Errorf("failed to get rows: %w", err)
 	}
 
-	var tableData []map[string]interface{}
+	var tableData []TableRow
 	for _, row := range rows[1:] { // Skip header row
-		member := safeGetCellValue(row, idxClen)
+		member := helpers.SafeGetCellValue(row, idxClen)
 		if member != name {
 			continue
 		}
 
-		dateStr := safeGetCellValue(row, idxDatum1)
-		date, err := parseDate(dateStr)
+		startDateStr := helpers.SafeGetCellValue(row, idxDatum1)
+		startDate, err := helpers.ParseDate(startDateStr)
 		if err != nil {
 			continue
 		}
-		if int(date.Month()) != month {
+		if int(startDate.Month()) != month {
 			continue
 		}
 
-		description := safeGetCellValue(row, idxNazevUdalosti)
-		timeEntry := safeGetCellValue(row, idxDatum1)
+		endDateStr := helpers.SafeGetCellValue(row, idxDatum2)
+		endDate, err := helpers.ParseDate(endDateStr)
+		if err != nil {
+			continue
+		}
 
-		tableData = append(tableData, map[string]interface{}{
-			"date":        dateStr,
-			"time":        timeEntry,
-			"description": description,
+		attended := helpers.SafeGetCellValue(row, idxAttended)
+
+		if attended != "ano" {
+			if int(startDate.Month()) == month {
+				continue
+			}
+		}
+
+		dateEntry := startDate.Format(dateParseFormat)
+		timeStartEntry := startDate.Format(timeFormat)
+		timeEndEntry := endDate.Format(timeFormat)
+		note := helpers.SafeGetCellValue(row, idxNazevUdalosti)
+
+		tableData = append(tableData, TableRow{
+			Date:      dateEntry,
+			StartTime: timeStartEntry,
+			EndTime:   timeEndEntry,
+			Note:      note,
 		})
 	}
 
@@ -461,15 +547,15 @@ func parseExcelForNamesAndMonths(fileData []byte) ([]string, []int, error) {
 	monthSet := make(map[int]struct{})
 
 	for _, row := range rows[1:] { // Skip header row
-		clenValue := safeGetCellValue(row, idxClen)
+		clenValue := helpers.SafeGetCellValue(row, idxClen)
 		if clenValue != "" {
 			nameSet[clenValue] = struct{}{}
 		}
 
 		// Extract start date
-		startDateStr := safeGetCellValue(row, idxDatum1)
+		startDateStr := helpers.SafeGetCellValue(row, idxDatum1)
 		if startDateStr != "" {
-			startDate, err := parseDate(startDateStr)
+			startDate, err := helpers.ParseDate(startDateStr)
 			if err == nil {
 				monthSet[int(startDate.Month())] = struct{}{}
 			}
@@ -494,24 +580,12 @@ func parseExcelForNamesAndMonths(fileData []byte) ([]string, []int, error) {
 	return names, months, nil
 }
 
-func generateFileToken() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		log.Printf("Error generating random token: %v", err)
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
-}
-
 func generateExcelReport(tableData []map[string]interface{}, name string, month int) (*excelize.File, error) {
 	// Open the template file
 	tmplFile, err := excelize.OpenFile(templateFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open template file: %w", err)
 	}
-
-	// Insert data into the template
-	sheetName := "Sheet1" // Adjust as per your template
 
 	// Start writing from row 2 if row 1 is header
 	rowIndex := 2
@@ -520,10 +594,10 @@ func generateExcelReport(tableData []map[string]interface{}, name string, month 
 		timeEntry := fmt.Sprintf("%v", row["time"])
 		description := fmt.Sprintf("%v", row["description"])
 
-		tmplFile.SetCellValue(sheetName, fmt.Sprintf("A%d", rowIndex), dateStr)
-		tmplFile.SetCellValue(sheetName, fmt.Sprintf("B%d", rowIndex), name)
-		tmplFile.SetCellValue(sheetName, fmt.Sprintf("C%d", rowIndex), description)
-		tmplFile.SetCellValue(sheetName, fmt.Sprintf("D%d", rowIndex), timeEntry)
+		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("A%d", rowIndex), dateStr)
+		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("B%d", rowIndex), name)
+		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("C%d", rowIndex), description)
+		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("D%d", rowIndex), timeEntry)
 		rowIndex++
 	}
 
@@ -531,81 +605,28 @@ func generateExcelReport(tableData []map[string]interface{}, name string, month 
 	return tmplFile, nil
 }
 
-func processExcelFile(fileData []byte, filterName string, filterMonth int) (*excelize.File, error) {
-	// Open the uploaded Excel file from the byte slice
-	srcFile, err := excelize.OpenReader(bytes.NewReader(fileData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
-	}
-	defer func() {
-		if err := srcFile.Close(); err != nil {
-			log.Printf("Error closing source file: %v", err)
-		}
-	}()
-
+func processExcelFile(filterName string, tableData []TableRow) (*excelize.File, error) {
 	// Load the existing Excel template
 	templateFile, err := excelize.OpenFile(templateFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open template file: %w", err)
 	}
-	defer func() {
-		if err := templateFile.Close(); err != nil {
-			log.Printf("Error closing template file: %v", err)
-		}
-	}()
-
-	// Check if the source sheet exists
-	if _, err := srcFile.GetSheetIndex(sourceSheetName); err != nil {
-		return nil, fmt.Errorf("sheet %q does not exist in the uploaded file", sourceSheetName)
-	}
-
-	// Get all rows from the source sheet
-	rows, err := srcFile.GetRows(sourceSheetName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get rows from sheet %s: %w", sourceSheetName, err)
-	}
+	// Note: Do not defer closing templateFile here since we'll return it
 
 	// Check if the target sheet exists in the template file
 	if _, err := templateFile.GetSheetIndex(targetSheetName); err != nil {
 		return nil, fmt.Errorf("sheet %q does not exist in the template file", targetSheetName)
 	}
 
-	// Filter rows for the specified name and month
-	var filteredRows [][]string
-	var firstname, lastname string
+	// Split the filterName into firstname and lastname
+	firstname, lastname := helpers.SplitName(filterName)
 
-	for _, row := range rows[1:] { // Skip header row
-		clenValue := safeGetCellValue(row, idxClen)
-		if strings.EqualFold(clenValue, filterName) {
-			fmt.Sprintf("Getting results for %s", clenValue)
-			// Extract start date and time
-			startDateStr := safeGetCellValue(row, idxDatum1)
-			startDate, err := parseDate(startDateStr)
-			if err != nil {
-				log.Printf("Error parsing date at row: %v", err)
-				continue // Skip rows with invalid dates
-			}
-
-			attended := safeGetCellValue(row, idxAttended)
-
-			if attended == "ano" {
-				if int(startDate.Month()) == filterMonth {
-					filteredRows = append(filteredRows, row)
-					firstname, lastname = splitName(clenValue)
-				}
-			}
-		}
-	}
-
-	if len(filteredRows) == 0 {
-		return nil, fmt.Errorf("no data found for name: %s and month: %d", filterName, filterMonth)
-	}
-
-	// Fill firstname and lastname into B3 and C3
-	if err := templateFile.SetCellValue(targetSheetName, "B4", firstname); err != nil {
+	// Fill firstname and lastname into B3 and B4
+	if err := templateFile.SetCellValue(targetSheetName, "B3", firstname); err != nil {
 		return nil, fmt.Errorf("failed to set firstname: %w", err)
 	}
-	if err := templateFile.SetCellValue(targetSheetName, "B3", lastname); err != nil {
+
+	if err := templateFile.SetCellValue(targetSheetName, "B4", lastname); err != nil {
 		return nil, fmt.Errorf("failed to set lastname: %w", err)
 	}
 
@@ -613,104 +634,66 @@ func processExcelFile(fileData []byte, filterName string, filterMonth int) (*exc
 	startRow := 7 // Data starts from row 7
 	maxRows := 31 // Limit to 31 entries (rows 7 to 37)
 
-	// Process the filtered data and fill dates and times
-	for i, row := range filteredRows {
+	// Process the tableData and fill dates and times
+	for i, row := range tableData {
 		if i >= maxRows {
+			//TODO: fire an error and let the user know, that he har reached the row limit
 			break // Limit to maxRows entries
 		}
 
-		// Extract start date and start time from idxDatum1
-		startDateStr := safeGetCellValue(row, idxDatum1)
-		startDateTime, err := parseDateTime(startDateStr)
+		// Parse the date string into time.Time
+		date, err := time.Parse(dateParseFormat, row.Date)
 		if err != nil {
-			log.Printf("Error parsing datetime at row %d: %v", i+2, err)
-			continue // Skip rows with invalid datetime
+			log.Printf("Error parsing date at tableData index %d: %v", i, err)
+			continue // Skip rows with invalid date
 		}
 
-		// Extract end time from idxDatum2
-		endTimeStr := safeGetCellValue(row, idxDatum2)
-		endDateTime, err := parseDateTime(endTimeStr)
-		if err != nil {
-			log.Printf("Error parsing datetime at row %d: %v", i+2, err)
-			continue // Skip rows with invalid datetime
-		}
-
-		nazevUdalosti := safeGetCellValue(row, idxNazevUdalosti)
-
-		// Set date into column A
+		// Set the date into column A
 		cellDate := fmt.Sprintf("A%d", startRow+i)
-		if err := templateFile.SetCellValue(targetSheetName, cellDate, startDateTime.Format("02.01.2006")); err != nil {
+		if err := templateFile.SetCellValue(targetSheetName, cellDate, date.Format(dateFormat)); err != nil {
 			return nil, fmt.Errorf("failed to set date at %s: %w", cellDate, err)
 		}
 
 		// Set start time into column B
 		cellStartTime := fmt.Sprintf("B%d", startRow+i)
-		if err := templateFile.SetCellValue(targetSheetName, cellStartTime, startDateTime.Format("15:04")); err != nil {
+		if err := templateFile.SetCellValue(targetSheetName, cellStartTime, row.StartTime); err != nil {
 			return nil, fmt.Errorf("failed to set start time at %s: %w", cellStartTime, err)
 		}
 
 		// Set end time into column C
 		cellEndTime := fmt.Sprintf("C%d", startRow+i)
-		if err := templateFile.SetCellValue(targetSheetName, cellEndTime, endDateTime.Format("15:04")); err != nil {
+		if err := templateFile.SetCellValue(targetSheetName, cellEndTime, row.EndTime); err != nil {
 			return nil, fmt.Errorf("failed to set end time at %s: %w", cellEndTime, err)
 		}
 
-		// Set název události into column E
-		cellNazevUdalosti := fmt.Sprintf("F%d", startRow+i)
-		if err := templateFile.SetCellValue(targetSheetName, cellNazevUdalosti, nazevUdalosti); err != nil {
-			return nil, fmt.Errorf("failed to set název události at %s: %w", cellNazevUdalosti, err)
+		// Set note into column F
+		cellNote := fmt.Sprintf("F%d", startRow+i)
+		if err := templateFile.SetCellValue(targetSheetName, cellNote, row.Note); err != nil {
+			return nil, fmt.Errorf("failed to set note at %s: %w", cellNote, err)
 		}
 	}
 
 	return templateFile, nil
 }
 
-func splitName(fullName string) (firstname, lastname string) {
-	parts := strings.Fields(fullName)
-	if len(parts) == 0 {
-		return "", ""
+func storeGeneratedFile(token string, file *excelize.File, fileName string) error {
+	// Create a buffer to hold the file data
+	buf := new(bytes.Buffer)
+	if err := file.Write(buf); err != nil {
+		return fmt.Errorf("failed to write Excel file to buffer: %w", err)
 	}
-	firstname = parts[0]
-	if len(parts) > 1 {
-		lastname = strings.Join(parts[1:], " ")
+
+	// Store the buffer in a temporary map or file system
+	tempFileStoreMu.Lock()
+	tempFileStore[token] = TempFileEntry{
+		Data:      buf.Bytes(),
+		Filename:  fileName,
+		Timestamp: time.Now(),
 	}
-	return firstname, lastname
-}
+	tempFileStoreMu.Unlock()
 
-func safeGetCellValue(row []string, index int) string {
-	if index < len(row) {
-		return row[index]
-	}
-	return ""
-}
+	// Optionally, set an expiration time for the token
+	// ...
 
-func parseDateTime(input string) (time.Time, error) {
-	layout := "2006-01-02 15:04"
-	return time.Parse(layout, input)
-}
-
-func parseDate(input string) (time.Time, error) {
-	layout := "2006-01-02 15:04"
-	return time.Parse(layout, input)
-}
-
-func removeDiacritics(s string) string {
-	t := make([]rune, 0, len(s))
-	for _, r := range norm.NFD.String(s) {
-		if unicode.Is(unicode.Mn, r) {
-			// Skip non-spacing marks (diacritics)
-			continue
-		}
-		t = append(t, r)
-	}
-	return string(t)
-}
-
-func sanitizeFilename(filename string) string {
-	// Replace any invalid characters with underscores
-	invalidChars := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
-	filename = invalidChars.ReplaceAllString(filename, "_")
-	// Trim spaces and periods at the end
-	filename = strings.TrimRight(filename, " .")
-	return filename
+	return nil
 }
