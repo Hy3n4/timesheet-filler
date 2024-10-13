@@ -500,7 +500,7 @@ func extractTableData(fileData []byte, name string, month int) ([]TableRow, erro
 		attended := helpers.SafeGetCellValue(row, idxAttended)
 
 		if attended != "ano" {
-			if int(startDate.Month()) == 9 {
+			if int(startDate.Month()) == month {
 				continue
 			}
 		}
