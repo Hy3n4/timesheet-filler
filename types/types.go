@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 type BaseTemplateData struct {
 	Error string
@@ -54,4 +57,9 @@ type TempFileEntry struct {
 	Data      []byte
 	Filename  string
 	Timestamp time.Time
+}
+
+type ResponseRecorder struct {
+	http.ResponseWriter
+	statusCode int
 }
