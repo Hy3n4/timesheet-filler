@@ -2,7 +2,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-timesheet-filler
+  name: {{ .Release.Name }}
   annotations:
     {{- toYaml .Values.ingress.annotations | nindent 4 }}
 spec:
