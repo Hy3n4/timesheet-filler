@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 	"timesheet-filler/helpers"
+	"timesheet-filler/types"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -35,64 +36,10 @@ const (
 	dateParseFormat  = "2006-01-02"
 )
 
-type BaseTemplateData struct {
-	Error string
-}
-
-type SelectTemplateData struct {
-	BaseTemplateData
-	FileToken    string
-	Names        []string
-	Months       []string
-	DefaultMonth string
-}
-
-type EditTemplateData struct {
-	BaseTemplateData
-	FileToken string
-	Name      string
-	Month     string
-	TableData []TableRow
-}
-
-type DownloadTemplateData struct {
-	BaseTemplateData
-	DownloadToken string
-	FileName      string
-	FileToken     string
-	Name          string
-	Month         string
-}
-
-type TableRow struct {
-	Date      string
-	StartTime string
-	EndTime   string
-	Note      string
-}
-
-type FileData struct {
-	Data   []byte
-	Names  []string
-	Months []string
-}
-
-// Create data structure
-type TemplateData struct {
-	Data        interface{}
-	CurrentYear int
-}
-
-type TempFileEntry struct {
-	Data      []byte
-	Filename  string
-	Timestamp time.Time
-}
-
 var (
-	fileStore       = make(map[string]FileData)
+	fileStore       = make(map[string]types.FileData)
 	fileStoreMu     sync.RWMutex
-	tempFileStore   = make(map[string]TempFileEntry)
+	tempFileStore   = make(map[string]types.TempFileEntry)
 	tempFileStoreMu sync.RWMutex
 
 	//go:embed templates/favicon/favicon.ico
@@ -125,7 +72,7 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
 
 func uploadFormHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -149,7 +96,7 @@ func renderTemplate(w http.ResponseWriter, tmplName string, data interface{}, st
 		return
 	}
 
-	tmplData := TemplateData{
+	tmplData := types.TemplateData{
 		Data:        data,
 		CurrentYear: time.Now().Year(),
 	}
@@ -163,7 +110,7 @@ func renderTemplate(w http.ResponseWriter, tmplName string, data interface{}, st
 
 func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -173,7 +120,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Limit the size of the uploaded file to 16MB
 	if err := r.ParseMultipartForm(16 << 20); err != nil {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Bad Request: Unable to parse form data.",
 		}
 		w.WriteHeader(http.StatusBadRequest)
@@ -185,7 +132,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Retrieve the uploaded file
 	file, header, err := r.FormFile("excelFile")
 	if err != nil {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Bad Request: Unable to retrieve file.",
 		}
 		w.WriteHeader(http.StatusBadRequest)
@@ -201,7 +148,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Read the file into a buffer
 	buf := &bytes.Buffer{}
 	if _, err := io.Copy(buf, file); err != nil {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Internal Server Error: Unable to read file.",
 		}
 		w.WriteHeader(http.StatusInternalServerError)
@@ -215,7 +162,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the Excel file to get the list of names and months
 	names, monthsInt, err := parseExcelForNamesAndMonths(fileData)
 	if err != nil {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Internal Server Error: Unable to parse Excel file.",
 		}
 		w.WriteHeader(http.StatusInternalServerError)
@@ -238,7 +185,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Store the fileData along with names and months using a unique token
 	fileToken := helpers.GenerateFileToken()
 	fileStoreMu.Lock()
-	fileStore[fileToken] = FileData{
+	fileStore[fileToken] = types.FileData{
 		Data:   fileData,
 		Names:  names,
 		Months: months,
@@ -246,7 +193,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	fileStoreMu.Unlock()
 
 	// Prepare data for the template
-	tmplData := SelectTemplateData{
+	tmplData := types.SelectTemplateData{
 		FileToken:    fileToken,
 		Names:        names,
 		Months:       months,
@@ -269,7 +216,7 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 	fileToken := r.FormValue("fileToken")
 
 	if name == "" || monthStr == "" || fileToken == "" {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "All fields are required.",
 		}
 		renderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
@@ -281,7 +228,7 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 	fileDataStruct, ok := fileStore[fileToken]
 	fileStoreMu.RUnlock()
 	if !ok {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Invalid session. Please re-upload your file.",
 		}
 		renderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
@@ -291,8 +238,8 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the month string to integer
 	month, err := helpers.ParseMonth(monthStr)
 	if err != nil {
-		tmplData := SelectTemplateData{
-			BaseTemplateData: BaseTemplateData{
+		tmplData := types.SelectTemplateData{
+			BaseTemplateData: types.BaseTemplateData{
 				Error: "Invalid month selected.",
 			},
 			FileToken:    fileToken,
@@ -307,8 +254,8 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract data from the uploaded Excel file
 	tableData, err := extractTableData(fileDataStruct.Data, name, month)
 	if err != nil {
-		tmplData := SelectTemplateData{
-			BaseTemplateData: BaseTemplateData{
+		tmplData := types.SelectTemplateData{
+			BaseTemplateData: types.BaseTemplateData{
 				Error: fmt.Sprintf("Failed to extract data: %v", err),
 			},
 			FileToken:    fileToken,
@@ -322,7 +269,7 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If no data was found, initialize with an empty row
 	if len(tableData) == 0 {
-		tableData = []TableRow{
+		tableData = []types.TableRow{
 			{
 				Date:      "",
 				StartTime: "",
@@ -332,7 +279,7 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tmplData := EditTemplateData{
+	tmplData := types.EditTemplateData{
 		FileToken: fileToken,
 		Name:      name,
 		Month:     monthStr,
@@ -359,7 +306,7 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	monthStr := r.FormValue("month")
 
 	if fileToken == "" || name == "" || monthStr == "" {
-		tmplData := BaseTemplateData{
+		tmplData := types.BaseTemplateData{
 			Error: "Missing required fields in process handler.",
 		}
 		renderTemplate(w, "upload.html", tmplData, http.StatusOK)
@@ -368,8 +315,8 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 
 	month, err := strconv.Atoi(monthStr)
 	if err != nil || month < 1 || month > 12 {
-		tmplData := EditTemplateData{
-			BaseTemplateData: BaseTemplateData{
+		tmplData := types.EditTemplateData{
+			BaseTemplateData: types.BaseTemplateData{
 				Error: "Invalid month value.",
 			},
 		}
@@ -385,8 +332,8 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	notes := r.Form["note[]"]
 
 	if len(dates) == 0 {
-		tmplData := EditTemplateData{
-			BaseTemplateData: BaseTemplateData{
+		tmplData := types.EditTemplateData{
+			BaseTemplateData: types.BaseTemplateData{
 				Error: "Please enter at least one row of data.",
 			},
 			FileToken: fileToken,
@@ -398,9 +345,9 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare data for processing
-	var tableData []TableRow
+	var tableData []types.TableRow
 	for i := range dates {
-		tableData = append(tableData, TableRow{
+		tableData = append(tableData, types.TableRow{
 			Date:      dates[i],
 			StartTime: startTimes[i],
 			EndTime:   endTimes[i],
@@ -433,8 +380,8 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Redirect to the download page or render the download template
-	tmplData := DownloadTemplateData{
-		BaseTemplateData: BaseTemplateData{},
+	tmplData := types.DownloadTemplateData{
+		BaseTemplateData: types.BaseTemplateData{},
 		DownloadToken:    downloadToken,
 		FileName:         filename,
 	}
@@ -476,7 +423,7 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	tempFileStoreMu.Unlock()
 }
 
-func extractTableData(fileData []byte, name string, month int) ([]TableRow, error) {
+func extractTableData(fileData []byte, name string, month int) ([]types.TableRow, error) {
 	srcFile, err := excelize.OpenReader(bytes.NewReader(fileData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
@@ -490,7 +437,7 @@ func extractTableData(fileData []byte, name string, month int) ([]TableRow, erro
 		return nil, fmt.Errorf("failed to get rows: %w", err)
 	}
 
-	var tableData []TableRow
+	var tableData []types.TableRow
 	for _, row := range rows[1:] { // Skip header row
 		member := helpers.SafeGetCellValue(row, idxClen)
 		if member != name {
@@ -525,7 +472,7 @@ func extractTableData(fileData []byte, name string, month int) ([]TableRow, erro
 		timeEndEntry := endDate.Format(timeFormat)
 		note := helpers.SafeGetCellValue(row, idxNazevUdalosti)
 
-		tableData = append(tableData, TableRow{
+		tableData = append(tableData, types.TableRow{
 			Date:      dateEntry,
 			StartTime: timeStartEntry,
 			EndTime:   timeEndEntry,
@@ -620,7 +567,7 @@ func generateExcelReport(tableData []map[string]interface{}, name string, month 
 	return tmplFile, nil
 }
 
-func processExcelFile(filterName string, tableData []TableRow) (*excelize.File, error) {
+func processExcelFile(filterName string, tableData []types.TableRow) (*excelize.File, error) {
 	// Load the existing Excel template
 	templateFile, err := excelize.OpenFile(templateFilePath)
 	if err != nil {
@@ -700,7 +647,7 @@ func storeGeneratedFile(token string, file *excelize.File, fileName string) erro
 
 	// Store the buffer in a temporary map or file system
 	tempFileStoreMu.Lock()
-	tempFileStore[token] = TempFileEntry{
+	tempFileStore[token] = types.TempFileEntry{
 		Data:      buf.Bytes(),
 		Filename:  fileName,
 		Timestamp: time.Now(),
