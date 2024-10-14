@@ -17,6 +17,8 @@ import (
 	"timesheet-filler/helpers"
 	"timesheet-filler/types"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -44,7 +46,32 @@ var (
 
 	//go:embed templates/favicon/favicon.ico
 	favicon []byte
+
+	httpRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"handler", "method", "status"},
+	)
+
+	httpRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "Duration of HTTP requests.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"handler", "method"})
 )
+
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func init() {
+	prometheus.MustRegister(httpRequestsTotal)
+}
 
 func main() {
 	http.HandleFunc("/", uploadFormHandler)
@@ -53,11 +80,40 @@ func main() {
 	http.HandleFunc("/process", processHandler)
 	http.HandleFunc("/download/", downloadHandler)
 	http.HandleFunc("/favicon.ico", faviconHandler)
+	http.Handle("/metrics", promhttp.Handler())
 
 	log.Println("Server started on http://localhost:8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+func instrumentHandler(handlerName string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rr := &responseRecorder{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK,
+		}
+		next.ServeHTTP(rr, r)
+		duration := time.Since(start).Seconds()
+
+		httpRequestDuration.With(prometheus.Labels{
+			"handler": handlerName,
+			"method":  r.Method,
+		}).Observe(duration)
+
+		httpRequestsTotal.With(prometheus.Labels{
+			"handler": handlerName,
+			"method":  r.Method,
+			"status":  fmt.Sprintf("%d", rr.statusCode),
+		}).Inc()
+	})
+}
+
+func (rr *responseRecorder) WriteHeader(code int) {
+	rr.statusCode = code
+	rr.ResponseWriter.WriteHeader(code)
 }
 
 func faviconHandler(w http.ResponseWriter, r *http.Request) {
