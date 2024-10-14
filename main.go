@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"html/template"
 	"io"
@@ -93,6 +94,9 @@ var (
 	fileStoreMu     sync.RWMutex
 	tempFileStore   = make(map[string]TempFileEntry)
 	tempFileStoreMu sync.RWMutex
+
+	//go:embed templates/favicon/favicon.ico
+	favicon []byte
 )
 
 func main() {
@@ -101,10 +105,21 @@ func main() {
 	http.HandleFunc("/edit", editHandler)
 	http.HandleFunc("/process", processHandler)
 	http.HandleFunc("/download/", downloadHandler)
+	http.HandleFunc("/favicon.ico", faviconHandler)
 
 	log.Println("Server started on http://localhost:8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+func faviconHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/vnd.microsoft.icon")
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write(favicon)
+	if err != nil {
+		log.Printf("Error writing favicon: %v", err)
 	}
 }
 
