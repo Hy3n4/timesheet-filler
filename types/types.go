@@ -63,3 +63,7 @@ type ResponseRecorder struct {
 	http.ResponseWriter
 	statusCode int
 }
+
+type HealthCheckResponse struct {
+	Status string `json:"status"`
+}

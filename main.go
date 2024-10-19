@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"timesheet-filler/helpers"
 	"timesheet-filler/types"
@@ -44,6 +46,7 @@ var (
 	fileStoreMu     sync.RWMutex
 	tempFileStore   = make(map[string]types.TempFileEntry)
 	tempFileStoreMu sync.RWMutex
+	ready           int32
 
 	//go:embed templates/favicon/favicon.ico
 	favicon []byte
@@ -75,6 +78,13 @@ func init() {
 }
 
 func main() {
+	atomic.StoreInt32(&ready, 0)
+	go func() {
+		atomic.StoreInt32(&ready, 1)
+	}()
+
+	http.HandleFunc("/healthz", livenessHandler)
+	http.HandleFunc("/readyz", readinessHandler)
 	http.HandleFunc("/", uploadFormHandler)
 	http.HandleFunc("/upload", uploadFileHandler)
 	http.HandleFunc("/edit", editHandler)
@@ -110,6 +120,34 @@ func instrumentHandler(handlerName string, next http.Handler) http.Handler {
 			"status":  fmt.Sprintf("%d", rr.statusCode),
 		}).Inc()
 	})
+}
+
+func livenessHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	response := types.HealthCheckResponse{
+		Status: "ok",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// readinessHandler returns HTTP 200 if the app is ready to accept requests
+func readinessHandler(w http.ResponseWriter, r *http.Request) {
+	if atomic.LoadInt32(&ready) == 1 {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		response := types.HealthCheckResponse{
+			Status: "ready",
+		}
+		json.NewEncoder(w).Encode(response)
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Header().Set("Content-Type", "application/json")
+		response := types.HealthCheckResponse{
+			Status: "not ready",
+		}
+		json.NewEncoder(w).Encode(response)
+	}
 }
 
 func (rr *responseRecorder) WriteHeader(code int) {
