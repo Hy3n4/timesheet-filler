@@ -93,12 +93,12 @@ func main() {
 
 	http.HandleFunc("/healthz", livenessHandler)
 	http.HandleFunc("/readyz", readinessHandler)
-	http.HandleFunc("/", uploadFormHandler)
-	http.HandleFunc("/upload", uploadFileHandler)
-	http.HandleFunc("/edit", editHandler)
-	http.HandleFunc("/process", processHandler)
-	http.HandleFunc("/download/", downloadHandler)
 	http.HandleFunc("/favicon.ico", faviconHandler)
+	http.Handle("/", instrumentHandler("uploadFormHandler", http.HandlerFunc(uploadFormHandler)))
+	http.Handle("/upload", instrumentHandler("uploadFileHandler", http.HandlerFunc(uploadFileHandler)))
+	http.Handle("/edit", instrumentHandler("editHandler", http.HandlerFunc(editHandler)))
+	http.Handle("/process", instrumentHandler("processHandler", http.HandlerFunc(processHandler)))
+	http.Handle("/download/", instrumentHandler("downloadHandler", http.HandlerFunc(downloadHandler)))
 	http.Handle("/metrics", promhttp.Handler())
 
 	log.Println("Server started on http://localhost:8080")
