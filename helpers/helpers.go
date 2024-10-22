@@ -108,3 +108,9 @@ func GenerateToken() string {
 	}
 	return hex.EncodeToString(b)
 }
+
+func TimeToSerial(hours, minutes, seconds int) float64 {
+	totalSeconds := hours*3600 + minutes*60 + seconds
+	secondsInDay := 24 * 3600
+	return float64(totalSeconds) / float64(secondsInDay)
+}

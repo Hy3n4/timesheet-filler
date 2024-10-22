@@ -36,6 +36,7 @@ const (
 	timeFormat       = "15:04"
 	dateFormat       = "02.01.2006"
 	dateParseFormat  = "2006-01-02"
+	timeParseFormat  = "3:04:00 PM"
 )
 
 var (
@@ -598,31 +599,6 @@ func parseExcelForNamesAndMonths(fileData []byte) ([]string, []int, error) {
 	return names, months, nil
 }
 
-func generateExcelReport(tableData []map[string]interface{}, name string, month int) (*excelize.File, error) {
-	// Open the template file
-	tmplFile, err := excelize.OpenFile(templateFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open template file: %w", err)
-	}
-
-	// Start writing from row 2 if row 1 is header
-	rowIndex := 2
-	for _, row := range tableData {
-		dateStr := fmt.Sprintf("%v", row["date"])
-		timeEntry := fmt.Sprintf("%v", row["time"])
-		description := fmt.Sprintf("%v", row["description"])
-
-		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("A%d", rowIndex), dateStr)
-		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("B%d", rowIndex), name)
-		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("C%d", rowIndex), description)
-		tmplFile.SetCellValue(targetSheetName, fmt.Sprintf("D%d", rowIndex), timeEntry)
-		rowIndex++
-	}
-
-	// Return the modified file
-	return tmplFile, nil
-}
-
 func processExcelFile(filterName string, tableData []types.TableRow) (*excelize.File, error) {
 	// Load the existing Excel template
 	templateFile, err := excelize.OpenFile(templateFilePath)
@@ -655,7 +631,7 @@ func processExcelFile(filterName string, tableData []types.TableRow) (*excelize.
 	// Process the tableData and fill dates and times
 	for i, row := range tableData {
 		if i >= maxRows {
-			//TODO: fire an error and let the user know, that he har reached the row limit
+			//TODO: fire an error and let the user know, that they have reached the row limit
 			break // Limit to maxRows entries
 		}
 
@@ -668,20 +644,35 @@ func processExcelFile(filterName string, tableData []types.TableRow) (*excelize.
 
 		// Set the date into column A
 		cellDate := fmt.Sprintf("A%d", startRow+i)
-		if err := templateFile.SetCellValue(targetSheetName, cellDate, date.Format(dateFormat)); err != nil {
+		if err := templateFile.SetCellValue(targetSheetName, cellDate, date); err != nil {
 			return nil, fmt.Errorf("failed to set date at %s: %w", cellDate, err)
 		}
 
+		startTime, err := time.Parse(timeFormat, row.StartTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse startTime: %w", err)
+		}
+		endTime, err := time.Parse(timeFormat, row.EndTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse startTime: %w", err)
+		}
+		serialStartTime := helpers.TimeToSerial(startTime.Hour(), startTime.Minute(), startTime.Second())
+		serialEndTime := helpers.TimeToSerial(endTime.Hour(), endTime.Minute(), endTime.Second())
+
 		// Set start time into column B
 		cellStartTime := fmt.Sprintf("B%d", startRow+i)
-		if err := templateFile.SetCellValue(targetSheetName, cellStartTime, row.StartTime); err != nil {
+		if err := templateFile.SetCellValue(targetSheetName, cellStartTime, serialStartTime); err != nil {
 			return nil, fmt.Errorf("failed to set start time at %s: %w", cellStartTime, err)
 		}
 
 		// Set end time into column C
 		cellEndTime := fmt.Sprintf("C%d", startRow+i)
-		if err := templateFile.SetCellValue(targetSheetName, cellEndTime, row.EndTime); err != nil {
+		if err := templateFile.SetCellValue(targetSheetName, cellEndTime, serialEndTime); err != nil {
 			return nil, fmt.Errorf("failed to set end time at %s: %w", cellEndTime, err)
+		}
+
+		if err := templateFile.SetCellStyle(targetSheetName, cellStartTime, cellEndTime, 25); err != nil {
+			return nil, fmt.Errorf("failed to set start time style at %s: %w", cellStartTime, err)
 		}
 
 		// Set note into column F
@@ -710,8 +701,7 @@ func storeGeneratedFile(token string, file *excelize.File, fileName string) erro
 	}
 	tempFileStoreMu.Unlock()
 
-	// Optionally, set an expiration time for the token
-	// ...
+	// TODO: Set an expiration time for the token
 
 	return nil
 }
