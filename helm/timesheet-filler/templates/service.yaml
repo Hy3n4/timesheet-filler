@@ -8,7 +8,7 @@ metadata:
   annotations:
     {{- if .Values.prometheus.enabled }}
     prometheus.io/scrape: {{ .Values.prometheus.enabled | default true | quote}}
-    prometheus.io/port: {{ .Values.prometheus.port | default .Values.service.port | quote }}
+    prometheus.io/port: {{ .Values.prometheus.port | default .Values.prometheus.port | quote }}
     prometheus.io/path: {{ .Values.prometheus.path | default "/metrics" | quote}}
     {{- end }}
 spec:
@@ -18,6 +18,10 @@ spec:
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
       name: http
+    - port: {{ .Values.prometheus.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
   selector:
     app: timesheet-filler
     release: {{ .Release.Name }}

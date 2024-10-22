@@ -10,7 +10,7 @@ image:
 prometheus:
   enabled: false
   path: /metrics
-  port: 8080
+  port: 9180
 
 service:
   type: ClusterIP
