@@ -2,17 +2,23 @@ package main
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 	"timesheet-filler/helpers"
 	"timesheet-filler/types"
@@ -44,6 +50,7 @@ var (
 	fileStoreMu     sync.RWMutex
 	tempFileStore   = make(map[string]types.TempFileEntry)
 	tempFileStoreMu sync.RWMutex
+	ready           int32
 
 	//go:embed templates/favicon/favicon.ico
 	favicon []byte
@@ -75,6 +82,17 @@ func init() {
 }
 
 func main() {
+	atomic.StoreInt32(&ready, 0)
+	go func() {
+		atomic.StoreInt32(&ready, 1)
+	}()
+
+	srv := http.Server{
+		Addr: ":8080",
+	}
+
+	http.HandleFunc("/healthz", livenessHandler)
+	http.HandleFunc("/readyz", readinessHandler)
 	http.HandleFunc("/", uploadFormHandler)
 	http.HandleFunc("/upload", uploadFileHandler)
 	http.HandleFunc("/edit", editHandler)
@@ -84,9 +102,28 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 
 	log.Println("Server started on http://localhost:8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe(): %v", err)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+
+	log.Print("Shutting down...")
+
+	atomic.StoreInt32(&ready, 0)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server Shutdown Failed:%+v", err)
 	}
+
+	log.Println("Server gracefully stopped.")
 }
 
 func instrumentHandler(handlerName string, next http.Handler) http.Handler {
@@ -110,6 +147,34 @@ func instrumentHandler(handlerName string, next http.Handler) http.Handler {
 			"status":  fmt.Sprintf("%d", rr.statusCode),
 		}).Inc()
 	})
+}
+
+func livenessHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	response := types.HealthCheckResponse{
+		Status: "ok",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// readinessHandler returns HTTP 200 if the app is ready to accept requests
+func readinessHandler(w http.ResponseWriter, r *http.Request) {
+	if atomic.LoadInt32(&ready) == 1 {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		response := types.HealthCheckResponse{
+			Status: "ready",
+		}
+		json.NewEncoder(w).Encode(response)
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Header().Set("Content-Type", "application/json")
+		response := types.HealthCheckResponse{
+			Status: "not ready",
+		}
+		json.NewEncoder(w).Encode(response)
+	}
 }
 
 func (rr *responseRecorder) WriteHeader(code int) {
