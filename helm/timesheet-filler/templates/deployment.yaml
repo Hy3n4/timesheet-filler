@@ -24,6 +24,9 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8080
+              name: http
+            - containerPort: 9180
+              name: metrics
           livenessProbe:
             httpGet:
               path: /healthz

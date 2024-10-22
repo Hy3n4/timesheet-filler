@@ -87,24 +87,40 @@ func main() {
 		atomic.StoreInt32(&ready, 1)
 	}()
 
-	srv := http.Server{
-		Addr: ":8080",
+	srvMux := http.NewServeMux()
+	srvMux.HandleFunc("/healthz", livenessHandler)
+	srvMux.HandleFunc("/readyz", readinessHandler)
+	srvMux.HandleFunc("/favicon.ico", faviconHandler)
+	srvMux.Handle("/", instrumentHandler("uploadFormHandler", http.HandlerFunc(uploadFormHandler)))
+	srvMux.Handle("/upload", instrumentHandler("uploadFileHandler", http.HandlerFunc(uploadFileHandler)))
+	srvMux.Handle("/edit", instrumentHandler("editHandler", http.HandlerFunc(editHandler)))
+	srvMux.Handle("/process", instrumentHandler("processHandler", http.HandlerFunc(processHandler)))
+	srvMux.Handle("/download/", instrumentHandler("downloadHandler", http.HandlerFunc(downloadHandler)))
+
+	metricsSrvMux := http.NewServeMux()
+	metricsSrvMux.Handle("/metrics", promhttp.Handler())
+
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: srvMux,
 	}
 
-	http.HandleFunc("/healthz", livenessHandler)
-	http.HandleFunc("/readyz", readinessHandler)
-	http.HandleFunc("/favicon.ico", faviconHandler)
-	http.Handle("/", instrumentHandler("uploadFormHandler", http.HandlerFunc(uploadFormHandler)))
-	http.Handle("/upload", instrumentHandler("uploadFileHandler", http.HandlerFunc(uploadFileHandler)))
-	http.Handle("/edit", instrumentHandler("editHandler", http.HandlerFunc(editHandler)))
-	http.Handle("/process", instrumentHandler("processHandler", http.HandlerFunc(processHandler)))
-	http.Handle("/download/", instrumentHandler("downloadHandler", http.HandlerFunc(downloadHandler)))
-	http.Handle("/metrics", promhttp.Handler())
+	metricsSrv := &http.Server{
+		Addr:    ":9180",
+		Handler: metricsSrvMux,
+	}
 
-	log.Println("Server started on http://localhost:8080")
 	go func() {
+		log.Printf("Starting application server on %s", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("ListenAndServe(): %v", err)
+			log.Fatalf("Application Server error: %v", err)
+		}
+	}()
+
+	go func() {
+		log.Printf("Starting metrics server on %s", metricsSrv.Addr)
+		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Metrics Server error: %v", err)
 		}
 	}()
 
@@ -120,7 +136,11 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server Shutdown Failed:%+v", err)
+		log.Fatalf("Application Server Shutdown Failed: %v", err)
+	}
+
+	if err := metricsSrv.Shutdown(ctx); err != nil {
+		log.Fatalf("Metrics Server Shutdown Failed: %v", err)
 	}
 
 	log.Println("Server gracefully stopped.")
