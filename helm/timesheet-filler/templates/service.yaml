@@ -5,6 +5,12 @@ metadata:
   labels:
     app: timesheet-filler
     release: {{ .Release.Name }}
+  annotations:
+    {{- if .Values.prometheus.enabled }}
+    prometheus.io/scrape: {{ .Values.prometheus.enabled | default true | quote}}
+    prometheus.io/port: {{ .Values.prometheus.port | default .Values.service.port | quote }}
+    prometheus.io/path: {{ .Values.prometheus.path | default "/metrics" | quote}}
+    {{- end }}
 spec:
   type: {{ .Values.service.type }}
   ports:
