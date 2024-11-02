@@ -59,6 +59,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}
             type=sha
+            type=raw,value=arm64
 
       - name: Build and push
         uses: docker/build-push-action@v4
@@ -112,13 +113,14 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}
             type=sha
+            type=raw,value=amd64
 
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, amd64
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: linux/amd64
           file: ./Dockerfile
 
