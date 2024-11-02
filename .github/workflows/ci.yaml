@@ -131,18 +131,24 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set environment variables
+        run: echo "LOWERCASE_IMAGE_NAME=${IMAGE_NAME,,}" >> $GITHUB_ENV
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
 
       - name: Create and push multi-arch manifest
         env:
           DOCKER_HUB_USERNAME: ${{ github.actor }}
           DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
         run: |
-          docker manifest create ${{ github.actor }}/${{ env.IMAGE_NAME }}:latest \
-            --amend ${{ github.actor }}/${{ env.IMAGE_NAME }}:amd64 \
-            --amend ${{ github.actor }}/${{ env.IMAGE_NAME }}:arm64
-          docker manifest push ${{ github.actor }}/${{ env.IMAGE_NAME }}:latest
+          docker manifest create ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }} \
+            --amend ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:amd64 \
+            --amend ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:arm64
+          docker manifest push ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:latest
