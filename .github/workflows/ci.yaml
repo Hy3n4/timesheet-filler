@@ -143,12 +143,16 @@ jobs:
         env:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
 
-      - name: Create and push multi-arch manifest
-        env:
-          DOCKER_HUB_USERNAME: ${{ github.actor }}
-          DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-        run: |
-          docker manifest create ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }} \
-            --amend ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:amd64 \
-            --amend ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:arm64
-          docker manifest push ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:latest
+      - uses: docker/metadata-action@v5
+        id: metadata
+        with:
+          images: ghcr.io/${{ github.repository }}
+
+      - uses: int128/docker-manifest-create-action@v2
+        id: build
+        with:
+          index-annotations: ${{ steps.metadata.outputs.labels }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          sources: |
+            ghcr.io/${{ env.LOWERCASE_IMAGE_NAME }}:arm64
+            ghcr.io/${{ env.LOWERCASE_IMAGE_NAME }}:amd64
