@@ -1,0 +1,27 @@
+version: "3"
+
+vars:
+  BINARY_NAME: timesheet-filler
+  CMD_PATH: ./cmd/server
+  DOCKER_IMAGE: ghcr.io/your-username/timesheet-filler
+
+tasks:
+  build:
+    desc: Build the application
+    cmds:
+      - go build -o {{.BINARY_NAME}} {{.CMD_PATH}}
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run linter
+    cmds:
+      - golangci-lint run ./...
+
+  docker:
+    desc: Build Docker image
+    cmds:
+      - docker build -t {{.DOCKER_IMAGE}}:latest .
