@@ -3,7 +3,7 @@ version: "3"
 vars:
   BINARY_NAME: timesheet-filler
   CMD_PATH: ./cmd/server
-  DOCKER_IMAGE: ghcr.io/your-username/timesheet-filler
+  DOCKER_IMAGE: ghcr.io/hy3n4/timesheet-filler
 
 tasks:
   build:

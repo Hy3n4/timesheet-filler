@@ -25,7 +25,7 @@ func main() {
 	cfg := config.New()
 
 	// Initialize services
-	fileStore := services.NewFileStore(cfg.FileTokenExpiry)
+	fileStore := services.NewFileStore(cfg.FileTokenExpiry, 10*time.Minute)
 	excelService := services.NewExcelService(cfg.TemplatePath)
 	templateService := services.NewTemplateService(cfg.TemplateDir)
 

@@ -8,18 +8,23 @@ import (
 )
 
 type FileStore struct {
-	fileData      map[string]models.FileData
-	tempFileData  map[string]models.TempFileEntry
-	fileMutex     sync.RWMutex
-	tempFileMutex sync.RWMutex
-	expiryTime    time.Duration
+	fileData        map[string]models.FileData
+	tempFileData    map[string]models.TempFileEntry
+	fileMutex       sync.RWMutex
+	tempFileMutex   sync.RWMutex
+	expiryTime      time.Duration
+	cleanupInterval time.Duration
 }
 
-func NewFileStore(expiryTime time.Duration) *FileStore {
+func NewFileStore(expiryTime time.Duration, cleanupInterval time.Duration) *FileStore {
+	if cleanupInterval == 0 {
+		cleanupInterval = time.Minute * 10
+	}
 	fs := &FileStore{
-		fileData:     make(map[string]models.FileData),
-		tempFileData: make(map[string]models.TempFileEntry),
-		expiryTime:   expiryTime,
+		fileData:        make(map[string]models.FileData),
+		tempFileData:    make(map[string]models.TempFileEntry),
+		expiryTime:      expiryTime,
+		cleanupInterval: cleanupInterval,
 	}
 
 	// Start cleanup goroutine
@@ -80,7 +85,7 @@ func (fs *FileStore) DeleteTempFile(token string) {
 }
 
 func (fs *FileStore) cleanupRoutine() {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(fs.cleanupInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -104,4 +109,26 @@ func (fs *FileStore) cleanupRoutine() {
 		}
 		fs.tempFileMutex.Unlock()
 	}
+}
+
+func (fs *FileStore) CleanupExpired() {
+	now := time.Now()
+
+	// Clean up file data
+	fs.fileMutex.Lock()
+	for token, data := range fs.fileData {
+		if now.Sub(data.Timestamp) > fs.expiryTime {
+			delete(fs.fileData, token)
+		}
+	}
+	fs.fileMutex.Unlock()
+
+	// Clean up temp files
+	fs.tempFileMutex.Lock()
+	for token, data := range fs.tempFileData {
+		if now.Sub(data.Timestamp) > fs.expiryTime {
+			delete(fs.tempFileData, token)
+		}
+	}
+	fs.tempFileMutex.Unlock()
 }
