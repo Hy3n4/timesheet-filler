@@ -1,44 +1,45 @@
 # syntax=docker/dockerfile:1
 
-# ---- Build Stage ----
-FROM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 
-# Install necessary packages
-RUN apk update && apk add --no-cache git
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
+RUN apk update && apk add --no-cache git ca-certificates tzdata
+WORKDIR /src
 
-# Set working directory
-WORKDIR /app
-
-# Copy go.mod and go.sum files
 COPY go.mod go.sum ./
+RUN go mod download && go mod verify
 
-# Download dependencies
-RUN go mod download
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY templates/ ./templates/
 
-# Copy the source code
-COPY . .
+RUN if [ -z "$TARGETOS" ]; then TARGETOS=$(go env GOOS); fi && \
+    if [ -z "$TARGETARCH" ]; then TARGETARCH=$(go env GOARCH); fi
 
-# Build the application
-RUN go build -o timesheet-filler
+RUN echo "Building for $TARGETOS/$TARGETARCH"
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -ldflags="-w -s" -o /app/timesheet-filler ./cmd/server
 
-# ---- Run Stage ----
-FROM alpine:latest
+FROM gcr.io/distroless/static:nonroot
 
-# Install certificates for HTTPS
-RUN apk --no-cache add ca-certificates
+COPY --from=builder /app/timesheet-filler /app/timesheet-filler
 
-# Set working directory
+COPY templates/ /app/templates/
+COPY gorily_timesheet_template_2024.xlsx /app/
+
 WORKDIR /app
 
-# Copy the compiled binary from the builder stage
-COPY --from=builder /app/timesheet-filler .
+EXPOSE 8080 9180
 
-# Copy templates and necessary files
-COPY templates ./templates
-COPY gorily_timesheet_template_2024.xlsx .
+ENV PORT=8080 \
+    METRICS_PORT=9180 \
+    TEMPLATE_DIR="templates" \
+    TEMPLATE_PATH="gorily_timesheet_template_2024.xlsx"
 
-# Expose port 8080
-EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/app/timesheet-filler", "-health-check"]
 
-# Run the application
-CMD ["./timesheet-filler"]
+ENTRYPOINT ["/app/timesheet-filler"]

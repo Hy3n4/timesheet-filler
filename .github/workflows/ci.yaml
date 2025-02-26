@@ -10,6 +10,7 @@ on:
       - "**/*.go"
       - "go.mod"
       - "go.sum"
+      - Dockerfile
 
 env:
   REGISTRY: ghcr.io
@@ -69,6 +70,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           platforms: linux/arm64
           file: ./Dockerfile
+          buildkitd-flags: --debug
 
   build-amd64:
     runs-on: ubuntu-latest
