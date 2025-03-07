@@ -15,6 +15,8 @@ RUN go mod download && go mod verify
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY templates/ ./templates/
+COPY translations/ ./translations/
+COPY types/ ./types/
 
 RUN if [ -z "$TARGETOS" ]; then TARGETOS=$(go env GOOS); fi && \
     if [ -z "$TARGETARCH" ]; then TARGETARCH=$(go env GOARCH); fi
@@ -28,6 +30,7 @@ FROM gcr.io/distroless/static:nonroot
 COPY --from=builder /app/timesheet-filler /app/timesheet-filler
 
 COPY templates/ /app/templates/
+COPY translations/ /app/translations/
 COPY gorily_timesheet_template_2024.xlsx /app/
 
 WORKDIR /app
