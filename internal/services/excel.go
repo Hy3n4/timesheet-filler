@@ -13,6 +13,20 @@ import (
 	"timesheet-filler/internal/utils"
 )
 
+type SheetNotFoundError struct {
+	SheetName       string
+	AvailableSheets []string
+}
+
+func (e SheetNotFoundError) Error() string {
+	return fmt.Sprintf("Sheet '%s' not found in Excel file", e.SheetName)
+}
+
+func IsSheetNotFoundError(err error) (SheetNotFoundError, bool) {
+	snfErr, ok := err.(SheetNotFoundError)
+	return snfErr, ok
+}
+
 type ExcelService struct {
 	templatePath     string
 	sourceSheet      string
@@ -39,7 +53,32 @@ func NewExcelService(templatePath string, sheetName string) *ExcelService {
 	}
 }
 
+func VerifySheetExists(fileData []byte, sheetName string) (bool, []string, error) {
+	// Open the Excel file
+	srcFile, err := excelize.OpenReader(bytes.NewReader(fileData))
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to open Excel file: %w", err)
+	}
+	defer srcFile.Close()
+
+	// Get all available sheets
+	sheets := srcFile.GetSheetList()
+
+	// Check if the requested sheet exists
+	for _, sheet := range sheets {
+		if sheet == sheetName {
+			return true, sheets, nil
+		}
+	}
+
+	return false, sheets, nil
+}
+
 func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte) ([]string, []int, error) {
+	if es.sourceSheet == "" {
+		return nil, nil, fmt.Errorf("source sheet name is empty")
+	}
+
 	srcFile, err := excelize.OpenReader(bytes.NewReader(fileData))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to open uploaded file: %w", err)
@@ -48,7 +87,11 @@ func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte) ([]string, 
 
 	// Check if the source sheet exists
 	if _, err := srcFile.GetSheetIndex(es.sourceSheet); err != nil {
-		return nil, nil, fmt.Errorf("sheet %q does not exist in the uploaded file", es.sourceSheet)
+		sheets := srcFile.GetSheetList()
+		return nil, nil, SheetNotFoundError{
+			SheetName:       es.sourceSheet,
+			AvailableSheets: sheets,
+		}
 	}
 
 	// Get all rows from the source sheet
@@ -237,4 +280,18 @@ func (es *ExcelService) ProcessExcelFile(filterName string, tableData []models.T
 	}
 
 	return templateFile, nil
+}
+
+func (es *ExcelService) SetSourceSheet(sheetName string) {
+	if sheetName == "" {
+		log.Println("No sheet name provided")
+		return
+	}
+
+	log.Printf("Setting source sheet to: '%s'", sheetName)
+	es.sourceSheet = sheetName
+}
+
+func (es *ExcelService) GetSourceSheet() string {
+	return es.sourceSheet
 }

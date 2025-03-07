@@ -35,6 +35,7 @@ func main() {
 
 	// Initialize handlers
 	uploadHandler := handlers.NewUploadHandler(excelService, fileStore, templateService, cfg.MaxUploadSize)
+	selectSheetHandler := handlers.NewSelectSheetHandler(excelService, fileStore, templateService)
 	editHandler := handlers.NewEditHandler(excelService, fileStore, templateService)
 	processHandler := handlers.NewProcessHandler(excelService, fileStore, templateService)
 	downloadHandler := handlers.NewDownloadHandler(fileStore)
@@ -77,6 +78,11 @@ func main() {
 		http.HandlerFunc(downloadHandler.DownloadHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("downloadHandler")))
+
+	mux.Handle("/select-sheet", applyMiddlewares(
+		http.HandlerFunc(selectSheetHandler.SelectSheetHandler),
+		loggingMiddleware.LogRequest,
+		metricsMiddleware.Instrument("selectSheetHandler")))
 
 	// Create servers
 	srv := &http.Server{

@@ -53,6 +53,13 @@ type TemplateData struct {
 	CurrentYear int
 }
 
+type SelectSheetTemplateData struct {
+	BaseTemplateData
+	FileToken       string
+	RequestedSheet  string
+	AvailableSheets []string
+}
+
 type TempFileEntry struct {
 	Data      []byte
 	Filename  string

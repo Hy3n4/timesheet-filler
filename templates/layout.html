@@ -55,6 +55,62 @@
             width: 120px;
             height: auto;
         }
+
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 600px;
+            margin: 60px auto 60px;
+            position: relative;
+        }
+
+        .progress-steps::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            right: 20px;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: 0;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .step.active .step-number {
+            background: #e94e1b;
+            color: white;
+        }
+
+        .step-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .step.active .step-label {
+            color: #e94e1b;
+            font-weight: bold;
+        }
     </style>
     {{block "head" .}}{{end}}
 </head>
@@ -75,6 +131,28 @@
                     <!-- Logo -->
                     <img src="https://gorilyplzen.eoscms.cz/webimages/club_logo_filename_20221007_152758.png" alt="Logo" class="logo mb-3 img-fluid">
                     {{block "content" .}}{{end}}
+
+                    <!-- Progress indicator -->
+                    {{if not (or (eq .CurrentPage "download") (eq .CurrentPage "error"))}}
+                    <div class="progress-steps mb-4">
+                        <div class="step {{if eq .CurrentPage "upload"}}active{{else if not .CurrentPage}}active{{end}}">
+                            <div class="step-number">1</div>
+                            <div class="step-label">Upload</div>
+                        </div>
+                        <div class="step {{if eq .CurrentPage "select"}}active{{end}}">
+                            <div class="step-number">2</div>
+                            <div class="step-label">Select</div>
+                        </div>
+                        <div class="step {{if eq .CurrentPage "edit"}}active{{end}}">
+                            <div class="step-number">3</div>
+                            <div class="step-label">Edit</div>
+                        </div>
+                        <div class="step {{if eq .CurrentPage "download"}}active{{end}}">
+                            <div class="step-number">4</div>
+                            <div class="step-label">Download</div>
+                        </div>
+                    </div>
+                    {{end}}
                 </div>
             </div>
         </div>

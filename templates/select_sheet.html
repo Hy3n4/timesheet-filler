@@ -1,0 +1,20 @@
+{{define "title"}}Select Excel Sheet{{end}}
+
+{{define "content"}}
+<h1>Select Excel Sheet</h1>
+
+<p>The sheet "{{.Data.RequestedSheet}}" was not found in your Excel file. Please select a sheet from the list below:</p>
+
+<form action="/select-sheet" method="post">
+    <input type="hidden" name="fileToken" value="{{.Data.FileToken}}">
+    <div class="mb-3 text-start input-group">
+        <span class="input-group-text">Sheet</span>
+        <select id="sheetName" name="sheetName" required class="form-select">
+            {{range .Data.AvailableSheets}}
+            <option value="{{.}}">{{.}}</option>
+            {{end}}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-custom btn-lg w-100">Continue</button>
+</form>
+{{end}}

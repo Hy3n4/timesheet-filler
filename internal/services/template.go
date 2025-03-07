@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"timesheet-filler/internal/models"
@@ -31,9 +32,12 @@ func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, tmplName string
 		return err
 	}
 
+	currentPage := strings.TrimSuffix(tmplName, ".html")
+
 	tmplData := models.TemplateData{
 		Data:        data,
 		CurrentYear: time.Now().Year(),
+		CurrentPage: currentPage,
 	}
 
 	w.WriteHeader(statusCode)

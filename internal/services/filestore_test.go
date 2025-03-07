@@ -15,7 +15,7 @@ func TestFileStore(t *testing.T) {
 	testMonths := []string{"1", "2"}
 
 	// Store the data
-	token := fileStore.StoreFileData(testData, testNames, testMonths)
+	token := fileStore.StoreFileData(testData, testNames, testMonths, "")
 
 	// Verify the token is not empty
 	if token == "" {

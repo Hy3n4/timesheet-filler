@@ -6,9 +6,12 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
+
+	"github.com/xuri/excelize/v2"
 )
 
 type UploadHandler struct {
@@ -94,11 +97,46 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 	// Parse the Excel file to get the list of names and months
 	names, monthsInt, err := h.excelService.ParseExcelForNamesAndMonths(fileData)
 	if err != nil {
+		// Check if it's a sheet not found error by looking at the error message
+		if strings.Contains(err.Error(), "sheet") && strings.Contains(err.Error(), "does not exist") {
+			// Get available sheets directly from the Excel file
+			srcFile, fileErr := excelize.OpenReader(bytes.NewReader(fileData))
+			if fileErr != nil {
+				log.Printf("Error opening Excel file: %v", fileErr)
+				tmplData := models.BaseTemplateData{
+					Error: "Failed to process Excel file: " + fileErr.Error(),
+				}
+				h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError)
+				return
+			}
+			defer srcFile.Close()
+
+			// Get all available sheets
+			availableSheets := srcFile.GetSheetList()
+
+			// Store the file data for later use
+			fileToken := h.fileStore.StoreFileData(fileData, nil, nil, "")
+
+			// Extract the sheet name from the error message
+			requestedSheet := h.excelService.GetSourceSheet() // Add this getter method
+
+			// Render the sheet selection template
+			tmplData := models.SelectSheetTemplateData{
+				BaseTemplateData: models.BaseTemplateData{},
+				FileToken:        fileToken,
+				RequestedSheet:   requestedSheet,
+				AvailableSheets:  availableSheets,
+			}
+			h.templateService.RenderTemplate(w, "select_sheet.html", tmplData, http.StatusOK)
+			return
+		}
+
+		// Handle other errors as before
+		log.Printf("Error parsing Excel file: %v", err)
 		tmplData := models.BaseTemplateData{
-			Error: "Internal Server Error: Unable to parse Excel file.",
+			Error: "Internal Server Error: Unable to parse Excel file: " + err.Error(),
 		}
 		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError)
-		log.Printf("Error parsing Excel file: %v", err)
 		return
 	}
 
@@ -115,7 +153,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	// Store the fileData along with names and months using a unique token
-	fileToken := h.fileStore.StoreFileData(fileData, names, months)
+	fileToken := h.fileStore.StoreFileData(fileData, names, months, "")
 
 	// Prepare data for the template
 	tmplData := models.SelectTemplateData{

@@ -33,7 +33,7 @@ func NewFileStore(expiryTime time.Duration, cleanupInterval time.Duration) *File
 	return fs
 }
 
-func (fs *FileStore) StoreFileData(data []byte, names []string, months []string) string {
+func (fs *FileStore) StoreFileData(data []byte, names []string, months []string, sheetName string) string {
 	token := utils.GenerateFileToken()
 
 	fs.fileMutex.Lock()
@@ -41,6 +41,7 @@ func (fs *FileStore) StoreFileData(data []byte, names []string, months []string)
 		Data:      data,
 		Names:     names,
 		Months:    months,
+		SheetName: sheetName,
 		Timestamp: time.Now(),
 	}
 	fs.fileMutex.Unlock()

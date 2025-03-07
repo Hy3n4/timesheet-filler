@@ -9,6 +9,13 @@ type BaseTemplateData struct {
 	Error string
 }
 
+type SelectSheetTemplateData struct {
+	BaseTemplateData
+	FileToken       string
+	RequestedSheet  string
+	AvailableSheets []string
+}
+
 type SelectTemplateData struct {
 	BaseTemplateData
 	FileToken    string
@@ -45,12 +52,14 @@ type FileData struct {
 	Data      []byte
 	Names     []string
 	Months    []string
+	SheetName string
 	Timestamp time.Time
 }
 
 type TemplateData struct {
 	Data        interface{}
 	CurrentYear int
+	CurrentPage string
 }
 
 type TempFileEntry struct {
