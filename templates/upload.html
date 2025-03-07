@@ -1,13 +1,13 @@
-{{define "title"}}Upload EOS Timesheet{{end}}
+{{define "title"}}{{t "upload_title"}}{{end}}
 
 {{define "content"}}
-<h1>Upload EOS Timesheet</h1>
+<h1>{{t "upload_title"}}</h1>
 
 <form action="/upload" method="post" enctype="multipart/form-data">
     <div class="mb-3 text-start">
-        <label for="excelFile" class="form-label">Select Excel File:</label>
+        <label for="excelFile" class="form-label">{{t "select_file"}}</label>
         <input type="file" id="excelFile" name="excelFile" accept=".xlsx,.xls" required class="form-control form-control-md">
     </div>
-    <button type="submit" class="btn btn-custom btn-lg w-100">Next</button>
+    <button type="submit" class="btn btn-custom btn-lg w-100">{{t "btn_next"}}</button>
 </form>
 {{end}}

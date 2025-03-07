@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
 	"timesheet-filler/internal/utils"
@@ -31,6 +32,14 @@ func NewProcessHandler(
 }
 
 func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) {
+	langValue := r.Context().Value(contextkeys.LanguageKey)
+	var lang string
+	if langValue != nil {
+		lang = langValue.(string)
+	} else {
+		lang = "en"
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -50,7 +59,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 		tmplData := models.BaseTemplateData{
 			Error: "Missing required fields in process handler.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusOK)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusOK, lang)
 		return
 	}
 
@@ -62,7 +71,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 			},
 		}
 		w.WriteHeader(http.StatusBadRequest)
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusNotFound)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusNotFound, lang)
 		return
 	}
 
@@ -81,7 +90,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 			Name:      name,
 			Month:     monthStr,
 		}
-		h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK)
+		h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK, lang)
 		return
 	}
 
@@ -128,5 +137,5 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 		DownloadToken:    downloadToken,
 		FileName:         filename,
 	}
-	h.templateService.RenderTemplate(w, "download.html", tmplData, http.StatusOK)
+	h.templateService.RenderTemplate(w, "download.html", tmplData, http.StatusOK, lang)
 }

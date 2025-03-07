@@ -14,6 +14,7 @@ import (
 
 	"timesheet-filler/internal/config"
 	"timesheet-filler/internal/handlers"
+	"timesheet-filler/internal/i18n"
 	"timesheet-filler/internal/middleware"
 	"timesheet-filler/internal/services"
 )
@@ -24,14 +25,20 @@ func main() {
 	// Load configuration
 	cfg := config.New()
 
+	translator, err := i18n.NewTranslator("translations", "en")
+	if err != nil {
+		log.Fatalf("failed to initialize translator: %v", err)
+	}
+
 	// Initialize services
 	fileStore := services.NewFileStore(cfg.FileTokenExpiry, 10*time.Minute)
 	excelService := services.NewExcelService(cfg.TemplatePath, cfg.SheetName)
-	templateService := services.NewTemplateService(cfg.TemplateDir)
+	templateService := services.NewTemplateService(cfg.TemplateDir, translator)
 
 	// Initialize middlewares
 	metricsMiddleware := middleware.NewMetricsMiddleware()
 	loggingMiddleware := middleware.NewLoggingMiddleware()
+	languageMiddleware := middleware.NewLanguageMiddleware("en", []string{"en", "cs"})
 
 	// Initialize handlers
 	uploadHandler := handlers.NewUploadHandler(excelService, fileStore, templateService, cfg.MaxUploadSize)
@@ -42,52 +49,55 @@ func main() {
 	healthHandler := handlers.NewHealthHandler()
 
 	// Set up HTTP router
-	mux := http.NewServeMux()
+	baseMux := http.NewServeMux()
 
 	// Health check and favicon routes
-	mux.HandleFunc("/healthz", healthHandler.LivenessHandler)
-	mux.HandleFunc("/readyz", healthHandler.ReadinessHandler)
+	baseMux.HandleFunc("/healthz", healthHandler.LivenessHandler)
+	baseMux.HandleFunc("/readyz", healthHandler.ReadinessHandler)
 
 	// Serve static files from the favicon directory
-	mux.Handle("/favicon/", http.StripPrefix("/favicon/", http.FileServer(http.Dir(cfg.TemplateDir+"/favicon"))))
-	mux.Handle("/favicon.svg", http.FileServer(http.Dir(cfg.TemplateDir+"/favicon")))
-	mux.Handle("/favicon.ico", http.FileServer(http.Dir(cfg.TemplateDir+"/favicon")))
+	baseMux.Handle("/favicon/", http.StripPrefix("/favicon/", http.FileServer(http.Dir(cfg.TemplateDir+"/favicon"))))
+	baseMux.Handle("/favicon.svg", http.FileServer(http.Dir(cfg.TemplateDir+"/favicon")))
+	baseMux.Handle("/favicon.ico", http.FileServer(http.Dir(cfg.TemplateDir+"/favicon")))
 
 	// Application routes with middleware
-	mux.Handle("/", applyMiddlewares(
+	baseMux.Handle("/", applyMiddlewares(
 		http.HandlerFunc(uploadHandler.UploadFormHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("uploadFormHandler")))
 
-	mux.Handle("/upload", applyMiddlewares(
+	baseMux.Handle("/upload", applyMiddlewares(
 		http.HandlerFunc(uploadHandler.UploadFileHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("uploadFileHandler")))
 
-	mux.Handle("/edit", applyMiddlewares(
+	baseMux.Handle("/edit", applyMiddlewares(
 		http.HandlerFunc(editHandler.EditHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("editHandler")))
 
-	mux.Handle("/process", applyMiddlewares(
+	baseMux.Handle("/process", applyMiddlewares(
 		http.HandlerFunc(processHandler.ProcessHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("processHandler")))
 
-	mux.Handle("/download/", applyMiddlewares(
+	baseMux.Handle("/download/", applyMiddlewares(
 		http.HandlerFunc(downloadHandler.DownloadHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("downloadHandler")))
 
-	mux.Handle("/select-sheet", applyMiddlewares(
+	baseMux.Handle("/select-sheet", applyMiddlewares(
 		http.HandlerFunc(selectSheetHandler.SelectSheetHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("selectSheetHandler")))
 
+	// Apply language middleware to all routes
+	rootHandler := languageMiddleware.DetectLanguage(baseMux)
+
 	// Create servers
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: mux,
+		Handler: rootHandler,
 	}
 
 	metricsMux := http.NewServeMux()
