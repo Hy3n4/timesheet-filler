@@ -13,6 +13,7 @@ type Config struct {
 	TemplatePath    string
 	MaxUploadSize   int64
 	FileTokenExpiry time.Duration
+	SheetName       string
 }
 
 func New() *Config {
@@ -23,6 +24,7 @@ func New() *Config {
 		TemplatePath:    getEnv("TEMPLATE_PATH", "gorily_timesheet_template_2024.xlsx"),
 		MaxUploadSize:   getEnvAsInt64("MAX_UPLOAD_SIZE", 16<<20), // 16MB
 		FileTokenExpiry: getEnvAsDuration("FILE_TOKEN_EXPIRY", 24*time.Hour),
+		SheetName:       getEnv("SHEET_NAME", "docházka správců {CLUB_TYPE}"),
 	}
 }
 

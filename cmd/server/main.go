@@ -26,7 +26,7 @@ func main() {
 
 	// Initialize services
 	fileStore := services.NewFileStore(cfg.FileTokenExpiry, 10*time.Minute)
-	excelService := services.NewExcelService(cfg.TemplatePath)
+	excelService := services.NewExcelService(cfg.TemplatePath, cfg.SheetName)
 	templateService := services.NewTemplateService(cfg.TemplateDir)
 
 	// Initialize middlewares

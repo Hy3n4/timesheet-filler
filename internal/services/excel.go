@@ -25,10 +25,10 @@ type ExcelService struct {
 	idxDatum2        int
 }
 
-func NewExcelService(templatePath string) *ExcelService {
+func NewExcelService(templatePath string, sheetName string) *ExcelService {
 	return &ExcelService{
 		templatePath:     templatePath,
-		sourceSheet:      "docházka realizačního týmu",
+		sourceSheet:      sheetName,
 		targetSheet:      "výkaz práce",
 		idxClen:          1,
 		idxAttended:      6,
