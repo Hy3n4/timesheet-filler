@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
 )
@@ -23,6 +24,14 @@ func NewSelectSheetHandler(excelService *services.ExcelService, fileStore *servi
 }
 
 func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.Request) {
+	langValue := r.Context().Value(contextkeys.LanguageKey)
+	var lang string
+	if langValue != nil {
+		lang = langValue.(string)
+	} else {
+		lang = "en"
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -43,7 +52,7 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 		tmplData := models.BaseTemplateData{
 			Error: "Invalid session. Please re-upload your file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -56,7 +65,7 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 		tmplData := models.BaseTemplateData{
 			Error: "Failed to parse Excel file: " + err.Error(),
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
 		return
 	}
 
@@ -80,5 +89,5 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 		DefaultMonth: defaultMonth,
 	}
 
-	h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusOK)
+	h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusOK, lang)
 }

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
 
@@ -36,23 +37,39 @@ func NewUploadHandler(
 }
 
 func (h *UploadHandler) UploadFormHandler(w http.ResponseWriter, r *http.Request) {
+	langValue := r.Context().Value(contextkeys.LanguageKey)
+	var lang string
+	if langValue != nil {
+		lang = langValue.(string)
+	} else {
+		lang = "en"
+	}
+
 	if r.Method != http.MethodGet {
 		tmplData := models.BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed, lang)
 		return
 	}
 
-	h.templateService.RenderTemplate(w, "upload.html", nil, http.StatusOK)
+	h.templateService.RenderTemplate(w, "upload.html", nil, http.StatusOK, lang)
 }
 
 func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request) {
+	langValue := r.Context().Value(contextkeys.LanguageKey)
+	var lang string
+	if langValue != nil {
+		lang = langValue.(string)
+	} else {
+		lang = "en"
+	}
+
 	if r.Method != http.MethodPost {
 		tmplData := models.BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed, lang)
 		return
 	}
 
@@ -61,7 +78,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Bad Request: Unable to parse form data.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
 		log.Printf("Error parsing form data: %v", err)
 		return
 	}
@@ -72,7 +89,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Bad Request: Unable to retrieve file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
 		log.Printf("Error retrieving file: %v", err)
 		return
 	}
@@ -87,7 +104,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Internal Server Error: Unable to read file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
 		log.Printf("Error reading file: %v", err)
 		return
 	}
@@ -106,7 +123,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 				tmplData := models.BaseTemplateData{
 					Error: "Failed to process Excel file: " + fileErr.Error(),
 				}
-				h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError)
+				h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
 				return
 			}
 			defer srcFile.Close()
@@ -127,7 +144,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 				RequestedSheet:   requestedSheet,
 				AvailableSheets:  availableSheets,
 			}
-			h.templateService.RenderTemplate(w, "select_sheet.html", tmplData, http.StatusOK)
+			h.templateService.RenderTemplate(w, "select_sheet.html", tmplData, http.StatusOK, lang)
 			return
 		}
 
@@ -136,7 +153,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Internal Server Error: Unable to parse Excel file: " + err.Error(),
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
 		return
 	}
 
@@ -164,5 +181,5 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	// Serve the selection form
-	h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusOK)
+	h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusOK, lang)
 }

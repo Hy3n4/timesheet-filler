@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
 	"timesheet-filler/internal/utils"
@@ -28,6 +29,14 @@ func NewEditHandler(
 }
 
 func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
+	langValue := r.Context().Value(contextkeys.LanguageKey)
+	var lang string
+	if langValue != nil {
+		lang = langValue.(string)
+	} else {
+		lang = "en"
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -42,7 +51,7 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 		tmplData := models.BaseTemplateData{
 			Error: "All fields are required.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -52,7 +61,7 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 		tmplData := models.BaseTemplateData{
 			Error: "Invalid session. Please re-upload your file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest)
+		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -68,7 +77,7 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 			Months:       fileDataStruct.Months,
 			DefaultMonth: monthStr,
 		}
-		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusBadRequest)
+		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -84,7 +93,7 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 			Months:       fileDataStruct.Months,
 			DefaultMonth: monthStr,
 		}
-		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusInternalServerError)
+		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusInternalServerError, lang)
 		return
 	}
 
@@ -107,5 +116,5 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 		TableData: tableData,
 	}
 
-	h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK)
+	h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK, lang)
 }

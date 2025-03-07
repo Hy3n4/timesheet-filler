@@ -1,12 +1,12 @@
-{{define "title"}}Select Name and Month{{end}}
+{{define "title"}}{{t "select_title"}}{{end}}
 
 {{define "content"}}
-<h1>Select Name and Month</h1>
+<h1>{{t "select_title"}}</h1>
 
 <form action="/edit" method="post">
     <input type="hidden" name="fileToken" value="{{.Data.FileToken}}">
     <div class="mb-3 text-start input-group">
-        <span class="input-group-text">Name</span>
+        <span class="input-group-text">{{t "select_name"}}</span>
         <select id="name" name="name" required class="form-select">
             {{range .Data.Names}}
             <option value="{{.}}">{{.}}</option>
@@ -14,13 +14,13 @@
         </select>
     </div>
     <div class="mb-3 text-start input-group">
-        <span class="input-group-text">Month</span>
+        <span class="input-group-text">{{t "select_month"}}</span>
         <select id="month" name="month" required class="form-select">
             {{range $index, $month := .Data.Months}}
             <option value="{{.}}" {{if eq $.Data.DefaultMonth .}}selected{{end}}>{{.}}</option>
             {{end}}
         </select>
     </div>
-    <button type="submit" class="btn btn-custom btn-lg w-100">Next</button>
+    <button type="submit" class="btn btn-custom btn-lg w-100">{{t "btn_next"}}</button>
 </form>
 {{end}}

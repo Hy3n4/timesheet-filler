@@ -60,6 +60,7 @@ type TemplateData struct {
 	Data        interface{}
 	CurrentYear int
 	CurrentPage string
+	Language    string
 }
 
 type TempFileEntry struct {

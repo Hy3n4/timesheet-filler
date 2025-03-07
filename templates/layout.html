@@ -1,9 +1,9 @@
 {{define "layout"}}
-<html lang="en">
+<html lang="{{.Language}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{block "title" .}}Excel Processing App{{end}}</title>
+    <title>{{t "app_title"}}</title>
 
     <link rel="icon" type="image/png" href="/favicon/favicon-48x48.png" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
@@ -137,21 +137,21 @@
                     <div class="progress-steps mb-4">
                         <div class="step {{if eq .CurrentPage "upload"}}active{{else if not .CurrentPage}}active{{end}}">
                             <div class="step-number">1</div>
-                            <div class="step-label">Upload</div>
+                            <div class="step-label">{{t "progress_upload"}}</div>
                         </div>
-                        <div class="step {{if eq .CurrentPage "select"}}active{{end}}">
-                            <div class="step-number">2</div>
-                            <div class="step-label">Select</div>
+                            <div class="step {{if eq .CurrentPage "select"}}active{{end}}">
+                                <div class="step-number">2</div>
+                                <div class="step-label">{{t "progress_select"}}</div>
+                            </div>
+                            <div class="step {{if eq .CurrentPage "edit"}}active{{end}}">
+                                <div class="step-number">3</div>
+                                <div class="step-label">{{t "progress_edit"}}</div>
+                            </div>
+                            <div class="step {{if eq .CurrentPage "download"}}active{{end}}">
+                                <div class="step-number">4</div>
+                                <div class="step-label">{{t "progress_download"}}</div>
+                            </div>
                         </div>
-                        <div class="step {{if eq .CurrentPage "edit"}}active{{end}}">
-                            <div class="step-number">3</div>
-                            <div class="step-label">Edit</div>
-                        </div>
-                        <div class="step {{if eq .CurrentPage "download"}}active{{end}}">
-                            <div class="step-number">4</div>
-                            <div class="step-label">Download</div>
-                        </div>
-                    </div>
                     {{end}}
                 </div>
             </div>
@@ -161,6 +161,12 @@
     <!-- Footer -->
     <footer class="text-center mt-5 mb-3">
         <p class="mb-0">&copy; {{.CurrentYear}} Hy3n4.net. All rights reserved.</p>
+        <!-- Language selector -->
+        <div class="language-selector">
+            <a href="?lang=en" class="btn btn-sm btn-link lang-btn {{if eq .Language "en"}}active{{end}}">EN</a>
+            |
+            <a href="?lang=cs" class="btn btn-sm btn-link lang-btn {{if eq .Language "cs"}}active{{end}}">CZ</a>
+        </div>
     </footer>
 
     <!-- Bootstrap JS -->
