@@ -40,7 +40,16 @@ EXPOSE 8080 9180
 ENV PORT=8080 \
     METRICS_PORT=9180 \
     TEMPLATE_DIR="templates" \
-    TEMPLATE_PATH="gorily_timesheet_template_2024.xlsx"
+    TEMPLATE_PATH="gorily_timesheet_template_2024.xlsx" \
+    EMAIL_ENABLED=false \
+    EMAIL_PROVIDER="sendgrid" \
+    SENDGRID_API_KEY="" \
+    AWS_REGION="us-central-1" \
+    AWS_ACCESS_KEY_ID="" \
+    AWS_SECRET_ACCESS_KEY="" \
+    EMAIL_FROM_NAME="Timesheet Filler" \
+    EMAIL_FROM_EMAIL="timesheet@example.com" \
+    EMAIL_DEFAULT_RECIPIENTS=""
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["/app/timesheet-filler", "-health-check"]
