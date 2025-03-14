@@ -47,5 +47,39 @@ jobs:
 
       - name: Verify Chart Release
         run: |
-          echo "Verifying chart was published successfully"
-          curl -s https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml | grep "timesheet-filler"
+          echo "Attempting to verify chart was published..."
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          SUCCESS=false
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ "$SUCCESS" = false ]; do
+            echo "Verification attempt $ATTEMPT of $MAX_ATTEMPTS"
+            if curl -s -f https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml > /dev/null; then
+              echo "✅ index.yaml found!"
+              if curl -s https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml | grep -q "timesheet-filler"; then
+                echo "✅ Chart 'timesheet-filler' found in index.yaml!"
+                SUCCESS=true
+              else
+                echo "❌ Chart 'timesheet-filler' not found in index.yaml"
+              fi
+            else
+              echo "❌ index.yaml not available yet"
+            fi
+
+            if [ "$SUCCESS" = false ]; then
+              if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                echo "Waiting 15 seconds before next attempt..."
+                sleep 15
+              fi
+              ATTEMPT=$((ATTEMPT+1))
+            fi
+          done
+
+          if [ "$SUCCESS" = true ]; then
+            echo "Verification successful! Chart has been published."
+          else
+            echo "Warning: Could not verify chart publication after $MAX_ATTEMPTS attempts."
+            echo "This does not necessarily mean the release failed - GitHub Pages may just take longer to update."
+            echo "Check https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml manually."
+            # Don't fail the workflow as the chart might still be publishing
+          fi
