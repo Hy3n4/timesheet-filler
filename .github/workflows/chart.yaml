@@ -91,8 +91,10 @@ jobs:
           helm package "$CHART_PATH" --version "$VERSION" -d .cr-release-packages
 
           # Get the package name
-          PACKAGE=$(ls .cr-release-packages/timesheet-filler-*.tgz)
-          echo "package=$PACKAGE" >> $GITHUB_OUTPUT
+          PACKAGE_FILE=$(ls .cr-release-packages/timesheet-filler-*.tgz)
+          PACKAGE_NAME=$(basename $PACKAGE_FILE)
+          echo "package=$PACKAGE_FILE" >> $GITHUB_OUTPUT
+          echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
 
           # Create a GitHub release
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -104,6 +106,7 @@ jobs:
           echo "Creating GitHub release for tag: $TAG"
 
       - name: Upload Chart to GitHub Release
+        id: release
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ steps.package.outputs.package }}
@@ -114,16 +117,30 @@ jobs:
       - name: Update Helm Repository Index
         run: |
           VERSION="${{ steps.extract_version.outputs.version }}"
+          PACKAGE_NAME="${{ steps.package.outputs.package_name }}"
+          REPO_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.event_name == 'workflow_dispatch' && format('chart-{0}', steps.extract_version.outputs.version) || github.ref_name }}"
+
+          # Create .cr-index directory
+          mkdir -p .cr-index
 
           # Download existing index if it exists
-          mkdir -p .cr-index
           curl -sSf https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml -o .cr-index/index.yaml || true
 
-          # Update the index with the new package
-          helm repo index --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ --merge .cr-index/index.yaml .cr-release-packages
+          # Use proper URL for the chart package
+          if [ -f .cr-index/index.yaml ]; then
+            # Update existing index
+            helm repo index --url "$REPO_URL" --merge .cr-index/index.yaml .cr-release-packages
+          else
+            # Create new index
+            helm repo index --url "$REPO_URL" .cr-release-packages
+          fi
 
           # Move the updated index to cr-index directory
           mv .cr-release-packages/index.yaml .cr-index/index.yaml
+
+          # Debug: Check the generated index.yaml
+          echo "Generated index.yaml content:"
+          cat .cr-index/index.yaml
 
       - name: Push Helm Repository to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
@@ -170,6 +187,7 @@ jobs:
 
           if [ "$SUCCESS" = true ]; then
             echo "Verification successful! Chart version $VERSION has been published."
+            echo "Chart URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event_name == 'workflow_dispatch' && format('chart-{0}', steps.extract_version.outputs.version) || github.ref_name }}/${{ steps.package.outputs.package_name }}"
           else
             echo "Warning: Could not verify chart publication after $MAX_ATTEMPTS attempts."
             echo "This does not necessarily mean the release failed - GitHub Pages may just take longer to update."
