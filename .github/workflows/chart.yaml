@@ -8,6 +8,11 @@ on:
     paths:
       - "helm/**"
 
+permissions:
+  contents: write
+  pages: write
+  packages: write
+
 jobs:
   release:
     name: Release Charts
