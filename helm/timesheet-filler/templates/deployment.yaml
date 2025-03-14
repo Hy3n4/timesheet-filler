@@ -76,7 +76,7 @@ spec:
                 secretKeyRef:
                 {{- if .Values.email.existingSecret }}
                   name: {{ .Values.email.existingSecret }}
-                  key: aws-access-key-id
+                  key: aws-secret-access-key
                 {{- else}}
                   name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.awsSecretName }}
                   key: aws-secret-access-key
