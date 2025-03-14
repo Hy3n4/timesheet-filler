@@ -49,6 +49,7 @@ jobs:
           fi
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update Chart Version
         run: |
@@ -64,17 +65,72 @@ jobs:
           echo "Updated chart version to $VERSION"
           cat $CHART_PATH
 
-          # Commit the version change
-          git add $CHART_PATH
-          git commit -m "Bump chart version to $VERSION [skip ci]"
-          git push origin ${GITHUB_REF_NAME}
+          # Commit the version change if this is a manual run
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            git add $CHART_PATH
+            git commit -m "Bump chart version to $VERSION [skip ci]"
 
-      - name: Release Helm Charts
-        uses: helm/chart-releaser-action@v1.6.0
-        env:
-          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Create tag for the chart version
+            git tag "chart-$VERSION"
+
+            # Push changes and tag
+            git push origin HEAD:${GITHUB_REF_NAME}
+            git push origin "chart-$VERSION"
+          fi
+
+      - name: Package Helm Chart
+        id: package
+        run: |
+          VERSION="${{ steps.extract_version.outputs.version }}"
+          CHART_PATH="helm/timesheet-filler"
+
+          # Create output directory
+          mkdir -p .cr-release-packages
+
+          # Package the chart
+          helm package "$CHART_PATH" --version "$VERSION" -d .cr-release-packages
+
+          # Get the package name
+          PACKAGE=$(ls .cr-release-packages/timesheet-filler-*.tgz)
+          echo "package=$PACKAGE" >> $GITHUB_OUTPUT
+
+          # Create a GitHub release
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="chart-$VERSION"
+          else
+            TAG="${{ steps.extract_version.outputs.tag }}"
+          fi
+
+          echo "Creating GitHub release for tag: $TAG"
+
+      - name: Upload Chart to GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          charts_dir: helm
+          files: ${{ steps.package.outputs.package }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('chart-{0}', steps.extract_version.outputs.version) || github.ref_name }}
+          name: "Helm Chart ${{ steps.extract_version.outputs.version }}"
+          body: "Helm chart release version ${{ steps.extract_version.outputs.version }}"
+
+      - name: Update Helm Repository Index
+        run: |
+          VERSION="${{ steps.extract_version.outputs.version }}"
+
+          # Download existing index if it exists
+          mkdir -p .cr-index
+          curl -sSf https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml -o .cr-index/index.yaml || true
+
+          # Update the index with the new package
+          helm repo index --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ --merge .cr-index/index.yaml .cr-release-packages
+
+          # Move the updated index to cr-index directory
+          mv .cr-release-packages/index.yaml .cr-index/index.yaml
+
+      - name: Push Helm Repository to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .cr-index
+          keep_files: true
 
       - name: Wait for GitHub Pages
         run: |
