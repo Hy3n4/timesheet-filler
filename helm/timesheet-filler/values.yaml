@@ -1,4 +1,12 @@
 # Default values for timesheet-filler.
+email:
+  enabled: true
+  provider: sendgrid
+  awsRegion: eu-central-1
+  fromName: Timesheet Filler
+  fromEmail: timesheet-filler@example.com
+  defaultRecipients: []
+  awsSecretName: aws-ses-credentials
 
 replicaCount: 1
 
@@ -31,9 +39,9 @@ ingress:
         - path: /
           pathType: Prefix
   tls:
-  - hosts:
-    - gorily.hy3n4.com
-    secretName: gorily-ingress-tls
+    - hosts:
+        - gorily.hy3n4.com
+      secretName: gorily-ingress-tls
 
 resources:
   limits:
