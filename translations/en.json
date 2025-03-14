@@ -33,5 +33,7 @@
   "email_your_email": "Your email address",
   "btn_send_email": "Send Email",
   "email_sent_success": "Email has been sent successfully!",
-  "email_sent_error": "Failed to send email"
+  "email_sent_error": "Failed to send email",
+  "email_subject": "Timesheet Report: %s - Month %s",
+  "email_body": "Attached is the timesheet report for %s for month %s.\n\nThis email was sent automatically from the Timesheet Filler application."
 }

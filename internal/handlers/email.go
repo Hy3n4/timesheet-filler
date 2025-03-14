@@ -116,10 +116,13 @@ func (h *EmailHandler) SendEmailHandler(w http.ResponseWriter, r *http.Request) 
 		ccList = append(ccList, userEmail)
 	}
 
-	// Prepare email subject and body
-	subject := fmt.Sprintf("Timesheet Report: %s - Month %s", name, month)
+	translator := h.templateService.GetTranslator()
+
+	subjectTemplate := translator.Translate("email_subject", lang)
+	subject := fmt.Sprintf(subjectTemplate, name, month)
+	bodyTemplate := translator.Translate("email_body", lang)
 	body := fmt.Sprintf(
-		"Attached is the timesheet report for %s for month %s.\n\nThis email was sent automatically from the Timesheet Filler application.",
+		bodyTemplate,
 		name, month)
 
 	// Prepare attachment

@@ -33,5 +33,7 @@
   "email_your_email": "Vaše e-mailová adresa",
   "btn_send_email": "Odeslat e-mail",
   "email_sent_success": "E-mail byl úspěšně odeslán!",
-  "email_sent_error": "Nepodařilo se odeslat e-mail"
+  "email_sent_error": "Nepodařilo se odeslat e-mail",
+  "email_subject": "Výkaz práce: %s - Měsíc %s",
+  "email_body": "V příloze naleznete výkaz práce pro %s za měsíc %s.\n\nTento e-mail byl automaticky odeslán z aplikace Výkaz Práce."
 }
