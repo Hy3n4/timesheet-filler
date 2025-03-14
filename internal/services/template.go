@@ -55,3 +55,7 @@ func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, tmplName string
 	w.WriteHeader(statusCode)
 	return tmpl.ExecuteTemplate(w, "layout", tmplData)
 }
+
+func (ts *TemplateService) GetTranslator() *i18n.Translator {
+	return ts.translator
+}

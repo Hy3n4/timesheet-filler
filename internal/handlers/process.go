@@ -17,17 +17,20 @@ type ProcessHandler struct {
 	excelService    *services.ExcelService
 	fileStore       *services.FileStore
 	templateService *services.TemplateService
+	emailEnabled    bool
 }
 
 func NewProcessHandler(
 	excelService *services.ExcelService,
 	fileStore *services.FileStore,
 	templateService *services.TemplateService,
+	emailEnabled bool,
 ) *ProcessHandler {
 	return &ProcessHandler{
 		excelService:    excelService,
 		fileStore:       fileStore,
 		templateService: templateService,
+		emailEnabled:    emailEnabled,
 	}
 }
 
@@ -136,6 +139,14 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 		BaseTemplateData: models.BaseTemplateData{},
 		DownloadToken:    downloadToken,
 		FileName:         filename,
+		FileToken:        fileToken,
+		Name:             name,
+		Month:            monthStr,
+		EmailEnabled:     h.emailEnabled,
+		EmailOptions: models.EmailOptions{
+			SendToSelf: false,
+			UserEmail:  "",
+		},
 	}
 	h.templateService.RenderTemplate(w, "download.html", tmplData, http.StatusOK, lang)
 }

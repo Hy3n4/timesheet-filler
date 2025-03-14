@@ -3,28 +3,47 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
-	Port            string
-	MetricsPort     string
-	TemplateDir     string
-	TemplatePath    string
-	MaxUploadSize   int64
-	FileTokenExpiry time.Duration
-	SheetName       string
+	Port               string
+	MetricsPort        string
+	TemplateDir        string
+	TemplatePath       string
+	MaxUploadSize      int64
+	FileTokenExpiry    time.Duration
+	SheetName          string
+	EmailEnabled       bool
+	EmailProvider      string
+	SendGridAPIKey     string
+	AWSRegion          string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	EmailFromName      string
+	EmailFromEmail     string
+	EmailDefaultTos    []string
 }
 
 func New() *Config {
 	return &Config{
-		Port:            getEnv("PORT", "8080"),
-		MetricsPort:     getEnv("METRICS_PORT", "9180"),
-		TemplateDir:     getEnv("TEMPLATE_DIR", "templates"),
-		TemplatePath:    getEnv("TEMPLATE_PATH", "gorily_timesheet_template_2024.xlsx"),
-		MaxUploadSize:   getEnvAsInt64("MAX_UPLOAD_SIZE", 16<<20), // 16MB
-		FileTokenExpiry: getEnvAsDuration("FILE_TOKEN_EXPIRY", 24*time.Hour),
-		SheetName:       getEnv("SHEET_NAME", "docházka správců {CLUB_TYPE}"),
+		Port:               getEnv("PORT", "8080"),
+		MetricsPort:        getEnv("METRICS_PORT", "9180"),
+		TemplateDir:        getEnv("TEMPLATE_DIR", "templates"),
+		TemplatePath:       getEnv("TEMPLATE_PATH", "gorily_timesheet_template_2024.xlsx"),
+		MaxUploadSize:      getEnvAsInt64("MAX_UPLOAD_SIZE", 16<<20), // 16MB
+		FileTokenExpiry:    getEnvAsDuration("FILE_TOKEN_EXPIRY", 24*time.Hour),
+		SheetName:          getEnv("SHEET_NAME", "docházka správců {CLUB_TYPE}"),
+		EmailEnabled:       getEnvAsBool("EMAIL_ENABLED", false),
+		EmailProvider:      getEnv("EMAIL_PROVIDER", "sendgrid"), // Default to SendGrid
+		SendGridAPIKey:     getEnv("SENDGRID_API_KEY", ""),
+		AWSRegion:          getEnv("AWS_REGION", "eu-central-1"),
+		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		EmailFromName:      getEnv("EMAIL_FROM_NAME", "Timesheet Filler"),
+		EmailFromEmail:     getEnv("EMAIL_FROM_EMAIL", "gorily.vykaz@hy3n4.com"),
+		EmailDefaultTos:    getEnvAsStringSlice("EMAIL_DEFAULT_TOS", []string{"hy3nk4@gmail.com"}),
 	}
 }
 
@@ -49,6 +68,22 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 		if d, err := time.ParseDuration(value); err == nil {
 			return d
 		}
+	}
+	return defaultValue
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if b, err := strconv.ParseBool(value); err == nil {
+			return b
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsStringSlice(key string, defaultValue []string) []string {
+	if value := os.Getenv(key); value != "" {
+		return strings.Split(value, ",")
 	}
 	return defaultValue
 }

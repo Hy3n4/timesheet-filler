@@ -26,5 +26,14 @@
   "download_title": "Your Timesheet Report Is Ready",
   "download_message": "Click the button below to download your report.",
   "download_expiry": "Your download will be available for 24 hours.",
-  "process_another": "Process another timesheet"
+  "process_another": "Process another timesheet",
+  "email_report": "Email Report",
+  "email_predefined_notice": "This report will be sent to predefined recipients.",
+  "email_send_to_self": "Also send a copy to me",
+  "email_your_email": "Your email address",
+  "btn_send_email": "Send Email",
+  "email_sent_success": "Email has been sent successfully!",
+  "email_sent_error": "Failed to send email",
+  "email_subject": "Timesheet Report: %s - Month %s",
+  "email_body": "Attached is the timesheet report for %s for month %s.\n\nThis email was sent automatically from the Timesheet Filler application."
 }

@@ -47,6 +47,48 @@ spec:
             successThreshold: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            - name: EMAIL_ENABLED
+              value: {{ .Values.email.enabled | quote }}
+            - name: EMAIL_PROVIDER
+              value: {{ .Values.email.provider | quote }}
+            - name: EMAIL_FROM_NAME
+              value: {{ .Values.email.fromName | quote }}
+            - name: EMAIL_FROM_EMAIL
+              value: {{ .Values.email.fromEmail | quote }}
+            - name: EMAIL_DEFAULT_RECIPIENTS
+              value: {{ join "," .Values.email.defaultRecipients | quote }}
+            {{- if and (eq .Values.email.provider "ses") (.Values.email.enabled) }}
+            - name: AWS_REGION
+              value: {{ .Values.email.awsRegion | quote }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                {{- if .Values.email.existingSecret }}
+                  name: {{ .Values.email.existingSecret }}
+                  key: aws-access-key-id
+                {{- else}}
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.awsSecretName }}
+                  key: aws-access-key-id
+                {{- end }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                {{- if .Values.email.existingSecret }}
+                  name: {{ .Values.email.existingSecret }}
+                  key: aws-access-key-id
+                {{- else}}
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.awsSecretName }}
+                  key: aws-secret-access-key
+                {{- end }}
+            {{- end }}
+            {{- if and (eq .Values.email.provider "sendgrid") (.Values.email.enabled) }}
+            - name: SENDGRID_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.sendgridSecretName }}
+                  key: sendgrid-api-key
+            {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

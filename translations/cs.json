@@ -26,5 +26,14 @@
   "download_title": "Váš výkaz práce je připraven",
   "download_message": "Klikněte na tlačítko níže pro stažení výkazu.",
   "download_expiry": "Váš soubor bude k dispozici po dobu 24 hodin.",
-  "process_another": "Zpracovat další výkaz"
+  "process_another": "Zpracovat další výkaz",
+  "email_report": "Odeslat výkaz e-mailem",
+  "email_predefined_notice": "Tento výkaz bude odeslán předdefinovaným příjemcům.",
+  "email_send_to_self": "Také mi poslat kopii",
+  "email_your_email": "Vaše e-mailová adresa",
+  "btn_send_email": "Odeslat e-mail",
+  "email_sent_success": "E-mail byl úspěšně odeslán!",
+  "email_sent_error": "Nepodařilo se odeslat e-mail",
+  "email_subject": "Výkaz práce: %s - Měsíc %s",
+  "email_body": "V příloze naleznete výkaz práce pro %s za měsíc %s.\n\nTento e-mail byl automaticky odeslán z aplikace Výkaz Práce."
 }

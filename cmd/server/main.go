@@ -20,6 +20,7 @@ import (
 )
 
 var favicon []byte
+var emailService *services.EmailService
 
 func main() {
 	// Load configuration
@@ -35,6 +36,38 @@ func main() {
 	excelService := services.NewExcelService(cfg.TemplatePath, cfg.SheetName)
 	templateService := services.NewTemplateService(cfg.TemplateDir, translator)
 
+	var emailService *services.EmailService
+	if cfg.EmailEnabled {
+		var provider services.EmailProvider
+
+		switch cfg.EmailProvider {
+		case "sendgrid":
+			provider = services.ProviderSendGrid
+			log.Printf("Email service initialized with SendGrid API")
+		case "ses":
+			provider = services.ProviderAWSSES
+			log.Printf("Email service initialized with AWS SES (region: %s)", cfg.AWSRegion)
+		default:
+			log.Printf("Unknown email provider: %s, defaulting to SendGrid", cfg.EmailProvider)
+			provider = services.ProviderSendGrid
+		}
+
+		emailService = services.NewEmailService(
+			provider,
+			cfg.EmailFromEmail,
+			cfg.EmailFromName,
+			cfg.EmailDefaultTos,
+			cfg.SendGridAPIKey,
+			cfg.AWSRegion,
+			cfg.AWSAccessKeyID,
+			cfg.AWSSecretAccessKey,
+		)
+		log.Printf("Email service initialized with SendGrid API")
+	} else {
+		log.Println("Email service is disabled")
+		emailService = services.NewEmailService(services.ProviderSendGrid, "", "", nil, "", "", "", "")
+	}
+
 	// Initialize middlewares
 	metricsMiddleware := middleware.NewMetricsMiddleware()
 	loggingMiddleware := middleware.NewLoggingMiddleware()
@@ -44,9 +77,10 @@ func main() {
 	uploadHandler := handlers.NewUploadHandler(excelService, fileStore, templateService, cfg.MaxUploadSize)
 	selectSheetHandler := handlers.NewSelectSheetHandler(excelService, fileStore, templateService)
 	editHandler := handlers.NewEditHandler(excelService, fileStore, templateService)
-	processHandler := handlers.NewProcessHandler(excelService, fileStore, templateService)
+	processHandler := handlers.NewProcessHandler(excelService, fileStore, templateService, cfg.EmailEnabled)
 	downloadHandler := handlers.NewDownloadHandler(fileStore)
 	healthHandler := handlers.NewHealthHandler()
+	emailhandler := handlers.NewEmailHandler(fileStore, emailService, templateService, cfg.EmailEnabled)
 
 	// Set up HTTP router
 	baseMux := http.NewServeMux()
@@ -90,6 +124,11 @@ func main() {
 		http.HandlerFunc(selectSheetHandler.SelectSheetHandler),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("selectSheetHandler")))
+
+	baseMux.Handle("/send-email", applyMiddlewares(
+		http.HandlerFunc(emailhandler.SendEmailHandler),
+		loggingMiddleware.LogRequest,
+		metricsMiddleware.Instrument("sendEmailHandler")))
 
 	// Apply language middleware to all routes
 	rootHandler := languageMiddleware.DetectLanguage(baseMux)

@@ -15,6 +15,54 @@
     </a>
 </div>
 
+<!-- Email options -->
+{{if .Data.EmailEnabled}}
+    {{if .Data.EmailSent}}
+        <div class="alert alert-success mt-3">
+            {{t "email_sent_success"}}
+        </div>
+    {{else if .Data.EmailError}}
+        <div class="alert alert-danger mt-3">
+            {{t "email_sent_error"}}: {{.Data.EmailError}}
+        </div>
+    {{else}}
+        <div class="card mt-4 mb-4">
+            <div class="card-header">
+                {{t "email_report"}}
+            </div>
+            <div class="card-body">
+                <form action="/send-email" method="post">
+                    <input type="hidden" name="fileToken" value="{{.Data.FileToken}}">
+                    <input type="hidden" name="downloadToken" value="{{.Data.DownloadToken}}">
+                    <input type="hidden" name="fileName" value="{{.Data.FileName}}">
+                    <input type="hidden" name="name" value="{{.Data.Name}}">
+                    <input type="hidden" name="month" value="{{.Data.Month}}">
+
+                    <p>{{t "email_predefined_notice"}}</p>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="sendToSelf" name="sendToSelf" value="true"
+                            {{if .Data.EmailOptions.SendToSelf}}checked{{end}}
+                            onchange="toggleEmailField()">
+                        <label class="form-check-label" for="sendToSelf">
+                            {{t "email_send_to_self"}}
+                        </label>
+                    </div>
+
+                    <div id="emailField" class="mb-3" style="{{if not .Data.EmailOptions.SendToSelf}}display: none;{{end}}">
+                        <label for="userEmail" class="form-label">{{t "email_your_email"}}</label>
+                        <input type="email" class="form-control" id="userEmail" name="userEmail"
+                            value="{{.Data.EmailOptions.UserEmail}}"
+                            {{if .Data.EmailOptions.SendToSelf}}required{{end}}>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">{{t "btn_send_email"}}</button>
+                </form>
+            </div>
+        </div>
+    {{end}}
+{{end}}
+
 <div class="mt-3 mb-4 text-muted">
     <small>{{t "download_expiry"}}</small>
 </div>
@@ -38,5 +86,19 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('file-downloaded-{{.Data.DownloadToken}}', 'true');
     });
 });
+
+function toggleEmailField() {
+    const sendToSelf = document.getElementById('sendToSelf').checked;
+    const emailField = document.getElementById('emailField');
+    const userEmail = document.getElementById('userEmail');
+
+    if (sendToSelf) {
+        emailField.style.display = 'block';
+        userEmail.required = true;
+    } else {
+        emailField.style.display = 'none';
+        userEmail.required = false;
+    }
+}
 </script>
 {{end}}

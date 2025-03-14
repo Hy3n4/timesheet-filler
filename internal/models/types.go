@@ -39,6 +39,10 @@ type DownloadTemplateData struct {
 	FileToken     string
 	Name          string
 	Month         string
+	EmailOptions  EmailOptions
+	EmailSent     bool
+	EmailError    string
+	EmailEnabled  bool
 }
 
 type TableRow struct {
@@ -76,4 +80,9 @@ type ResponseRecorder struct {
 
 type HealthCheckResponse struct {
 	Status string `json:"status"`
+}
+
+type EmailOptions struct {
+	SendToSelf bool
+	UserEmail  string
 }
