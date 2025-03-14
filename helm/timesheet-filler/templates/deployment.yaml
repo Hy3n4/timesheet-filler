@@ -64,20 +64,30 @@ spec:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ default (printf "%s-aws-ses-credentials" .Release.Name) .Values.email.awsSecretName }}
+                {{- if .Values.email.existingSecret }}
+                  name: {{ .Values.email.existingSecret }}
                   key: aws-access-key-id
+                {{- else}}
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.awsSecretName }}
+                  key: aws-access-key-id
+                {{- end }}
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ default (printf "%s-aws-ses-credentials" .Release.Name) .Values.email.awsSecretName }}
+                {{- if .Values.email.existingSecret }}
+                  name: {{ .Values.email.existingSecret }}
+                  key: aws-access-key-id
+                {{- else}}
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.awsSecretName }}
                   key: aws-secret-access-key
+                {{- end }}
             {{- end }}
             {{- if and (eq .Values.email.provider "sendgrid") (.Values.email.enabled) }}
             - name: SENDGRID_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ default (printf "%s-sendgrid-credentials" .Release.Name) .Values.email.sendgridSecretName }}
-                  key: api-key
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.sendgridSecretName }}
+                  key: sendgrid-api-key
             {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
