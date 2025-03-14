@@ -1,12 +1,14 @@
-name: Release Helm Chart
+name: Helm Chart Release
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - "helm/**"
+    tags:
+      - "v*.*.*" # Trigger on semantic version tags (v1.2.3)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Override chart version (leave empty to use git tag)"
+        required: false
 
 permissions:
   contents: write
@@ -14,28 +16,58 @@ permissions:
   packages: write
 
 jobs:
-  release:
-    name: Release Charts
+  release-chart:
+    name: Release Helm Chart
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Required for chart-releaser to work properly
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4.2.0
 
       - name: Configure Git
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
-
-      - name: Add Helm repositories
+      - name: Extract Version
+        id: extract_version
         run: |
-          # Add any required helm repositories here if your chart has dependencies
-          # Example: helm repo add bitnami https://charts.bitnami.com/bitnami
+          # If manually triggered with version input, use that
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.version }}" != "" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            echo "Using manually provided version: $VERSION"
+          else
+            # Extract version from git tag (remove 'v' prefix)
+            TAG=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG#v}
+            echo "Using version from git tag: $VERSION"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update Chart Version
+        run: |
+          VERSION="${{ steps.extract_version.outputs.version }}"
+
+          # Update Chart.yaml version
+          CHART_PATH="helm/timesheet-filler/Chart.yaml"
+          sed -i "s/^version:.*/version: $VERSION/" $CHART_PATH
+
+          # If appVersion is used, update that too
+          sed -i "s/^appVersion:.*/appVersion: $VERSION/" $CHART_PATH
+
+          echo "Updated chart version to $VERSION"
+          cat $CHART_PATH
+
+          # Commit the version change
+          git add $CHART_PATH
+          git commit -m "Bump chart version to $VERSION [skip ci]"
+          git push origin ${GITHUB_REF_NAME}
 
       - name: Release Helm Charts
         uses: helm/chart-releaser-action@v1.6.0
@@ -43,11 +75,16 @@ jobs:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           charts_dir: helm
-          # config: cr.yaml
+
+      - name: Wait for GitHub Pages
+        run: |
+          echo "Waiting for GitHub Pages to update (30s)..."
+          sleep 30
 
       - name: Verify Chart Release
         run: |
-          echo "Attempting to verify chart was published..."
+          VERSION="${{ steps.extract_version.outputs.version }}"
+          echo "Attempting to verify chart version $VERSION was published..."
           MAX_ATTEMPTS=5
           ATTEMPT=1
           SUCCESS=false
@@ -56,11 +93,11 @@ jobs:
             echo "Verification attempt $ATTEMPT of $MAX_ATTEMPTS"
             if curl -s -f https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml > /dev/null; then
               echo "✅ index.yaml found!"
-              if curl -s https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml | grep -q "timesheet-filler"; then
-                echo "✅ Chart 'timesheet-filler' found in index.yaml!"
+              if curl -s https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml | grep -q "timesheet-filler-$VERSION"; then
+                echo "✅ Chart 'timesheet-filler-$VERSION' found in index.yaml!"
                 SUCCESS=true
               else
-                echo "❌ Chart 'timesheet-filler' not found in index.yaml"
+                echo "❌ Chart 'timesheet-filler-$VERSION' not found in index.yaml"
               fi
             else
               echo "❌ index.yaml not available yet"
@@ -76,10 +113,9 @@ jobs:
           done
 
           if [ "$SUCCESS" = true ]; then
-            echo "Verification successful! Chart has been published."
+            echo "Verification successful! Chart version $VERSION has been published."
           else
             echo "Warning: Could not verify chart publication after $MAX_ATTEMPTS attempts."
             echo "This does not necessarily mean the release failed - GitHub Pages may just take longer to update."
             echo "Check https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml manually."
-            # Don't fail the workflow as the chart might still be publishing
           fi
