@@ -16,34 +16,31 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Required for chart-releaser to work properly
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
       - name: Set up Helm
         uses: azure/setup-helm@v4.2.0
 
-      - name: Install chart-releaser
+      - name: Add Helm repositories
+        run: |
+          # Add any required helm repositories here if your chart has dependencies
+          # Example: helm repo add bitnami https://charts.bitnami.com/bitnami
+
+      - name: Release Helm Charts
         uses: helm/chart-releaser-action@v1.6.0
-        id: cr
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           charts_dir: helm
-          packages_dir: cr-packages
-          release_name: timesheet-filler
+          # config: cr.yaml
 
-      - name: Package and Release Charts
+      - name: Verify Chart Release
         run: |
-          # Package the chart
-          helm package helm/timesheet-filler -d cr-packages
-
-          # Upload the chart as a GitHub release
-          cr upload -o ${{ github.repository_owner }} -r ${{ github.event.repository.name }} -p cr-packages
-
-          # Update the index.yaml on gh-pages branch
-          cr index -o ${{ github.repository_owner }} -r ${{ github.event.repository.name }} -p cr-packages -c https://$GITHUB_SERVER/$GITHUB_REPOSITORY/
-
-      - name: Push index.yaml to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./cr-index
-          publish_branch: gh-pages
+          echo "Verifying chart was published successfully"
+          curl -s https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/index.yaml | grep "timesheet-filler"
