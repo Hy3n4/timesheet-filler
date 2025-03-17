@@ -20,32 +20,32 @@ func NewDownloadHandler(fileStore *services.FileStore) *DownloadHandler {
 }
 
 func (h *DownloadHandler) DownloadHandler(w http.ResponseWriter, r *http.Request) {
-	// Extract the download token from the URL path
 	token := strings.TrimPrefix(r.URL.Path, "/download/")
 
-	// Validate the token
 	if token == "" {
+		log.Println("Bad Request: Missing token")
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
-	// Retrieve the file data from temporary storage
+	log.Printf("Download request for token: %s", token)
+
 	fileEntry, ok := h.fileStore.GetTempFile(token)
 	if !ok {
+		log.Printf("Download error: File not found for token: %s", token)
 		http.Error(w, "File Not Found", http.StatusNotFound)
 		return
 	}
 
-	// Set headers for file download
+	log.Printf("Found file for download: %s (size: %d bytes", fileEntry.Filename, len(fileEntry.Data))
+
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileEntry.Filename))
 
-	// Write the file data to the response
 	_, err := w.Write(fileEntry.Data)
 	if err != nil {
 		log.Printf("Error sending file: %v", err)
 	}
 
-	// Clean up the stored file
 	h.fileStore.DeleteTempFile(token)
 }

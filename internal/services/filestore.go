@@ -1,6 +1,7 @@
 package services
 
 import (
+	"log"
 	"sync"
 	"time"
 	"timesheet-filler/internal/metrics"
@@ -64,6 +65,7 @@ func (fs *FileStore) GetFileData(token string) (models.FileData, bool) {
 }
 
 func (fs *FileStore) StoreTempFile(data []byte, filename string) string {
+	startTime := time.Now()
 	token := utils.GenerateFileToken()
 
 	fs.tempFileMutex.Lock()
@@ -74,6 +76,12 @@ func (fs *FileStore) StoreTempFile(data []byte, filename string) string {
 	}
 	fs.tempFileMutex.Unlock()
 
+	m := metrics.GetMetrics()
+	m.RecordFileProcessed(metrics.StageStorage, metrics.StatusSuccess)
+	m.RecordProcessingDuration(metrics.StageStorage, time.Since(startTime))
+	m.RecordFileSize(metrics.StageStorage, int64(len(data)))
+
+	log.Printf("Stored temporary file with token: %s, filename: %s, size: %d", token, filename, len(data))
 	return token
 }
 
@@ -81,6 +89,19 @@ func (fs *FileStore) GetTempFile(token string) (models.TempFileEntry, bool) {
 	fs.tempFileMutex.RLock()
 	data, ok := fs.tempFileData[token]
 	fs.tempFileMutex.RUnlock()
+
+	if !ok {
+		fs.tempFileMutex.Lock()
+		tokens := make([]string, 0, len(fs.tempFileData))
+		for k := range fs.tempFileData {
+			tokens = append(tokens, k)
+		}
+		fs.tempFileMutex.Unlock()
+
+		log.Printf("Available token: %v", token)
+	} else {
+		log.Printf("GetTempFile: Found token: %s, filename: %s, size: %d, age: %v", token, data.Filename, len(data.Data), time.Since(data.Timestamp))
+	}
 
 	return data, ok
 }
