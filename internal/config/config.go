@@ -29,7 +29,7 @@ type Config struct {
 	MailJetSecretKey   string
 	EmailFromName      string
 	EmailFromEmail     string
-	EmailDefaultTos    []string
+	Emailrecipients    []string
 }
 
 func New() *Config {
@@ -55,7 +55,7 @@ func New() *Config {
 		MailJetSecretKey:   getEnv("MAILJET_SECRET_KEY", ""),
 		EmailFromName:      getEnv("EMAIL_FROM_NAME", "Timesheet Filler"),
 		EmailFromEmail:     getEnv("EMAIL_FROM_EMAIL", "gorily.vykaz@hy3n4.com"),
-		EmailDefaultTos:    getEnvAsStringSlice("EMAIL_DEFAULT_TOS", []string{"hy3nk4@gmail.com"}),
+		Emailrecipients:    getEnvAsStringSlice("EMAIL_RECIPIENTS", []string{"hy3nk4@gmail.com"}),
 	}
 }
 

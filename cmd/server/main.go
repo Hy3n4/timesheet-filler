@@ -70,7 +70,7 @@ func main() {
 			provider,
 			cfg.EmailFromEmail,
 			cfg.EmailFromName,
-			cfg.EmailDefaultTos,
+			cfg.Emailrecipients,
 			cfg.SendGridAPIKey,
 			cfg.AWSRegion,
 			cfg.AWSAccessKeyID,

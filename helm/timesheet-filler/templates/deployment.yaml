@@ -56,7 +56,7 @@ spec:
               value: {{ .Values.email.fromName | quote }}
             - name: EMAIL_FROM_EMAIL
               value: {{ .Values.email.fromEmail | quote }}
-            - name: EMAIL_DEFAULT_RECIPIENTS
+            - name: EMAIL_RECIPIENTS
               value: {{ join "," .Values.email.defaultRecipients | quote }}
             {{- if and (eq .Values.email.provider "ses") (.Values.email.enabled) }}
             - name: AWS_REGION
