@@ -1,15 +1,20 @@
 # Default values for timesheet-filler.
 email:
   enabled: true
-  provider: ses
+  provider: mailjet
   awsRegion: eu-central-1
   fromName: Timesheet Filler
   fromEmail: timesheet-filler@example.com
   defaultRecipients: []
-  awsSecretName: aws-ses-credentials
+  existingSecret: ""
   awsAccessKeyID: "test"
   awsSecretAccessKey: "test"
-  existingSecret: "test-secret"
+  ociConfigPath: ""
+  ociProfileName: "DEFAULT"
+  ociCompartmentID: "ocid1.compartment.oc1..example"
+  ociEndpointSuffix: "oraclecloud.com"
+  mailjetAPIKey: ""
+  mailjetSecretKey: ""
 
 replicaCount: 1
 

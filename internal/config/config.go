@@ -21,6 +21,12 @@ type Config struct {
 	AWSRegion          string
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
+	OCIConfigPath      string
+	OCIProfileName     string
+	OCICompartmentID   string
+	OCIEndpointSuffix  string
+	MailJetAPIKey      string
+	MailJetSecretKey   string
 	EmailFromName      string
 	EmailFromEmail     string
 	EmailDefaultTos    []string
@@ -41,6 +47,12 @@ func New() *Config {
 		AWSRegion:          getEnv("AWS_REGION", "eu-central-1"),
 		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		OCIConfigPath:      getEnv("OCI_CONFIG_PATH", ""),
+		OCIProfileName:     getEnv("OCI_PROFILE_NAME", "DEFAULT"),
+		OCICompartmentID:   getEnv("OCI_COMPARTMENT_ID", ""),
+		OCIEndpointSuffix:  getEnv("OCI_ENDPOINT_SUFFIX", "oraclecloud.com"),
+		MailJetAPIKey:      getEnv("MAILJET_API_KEY", ""),
+		MailJetSecretKey:   getEnv("MAILJET_SECRET_KEY", ""),
 		EmailFromName:      getEnv("EMAIL_FROM_NAME", "Timesheet Filler"),
 		EmailFromEmail:     getEnv("EMAIL_FROM_EMAIL", "gorily.vykaz@hy3n4.com"),
 		EmailDefaultTos:    getEnvAsStringSlice("EMAIL_DEFAULT_TOS", []string{"hy3nk4@gmail.com"}),

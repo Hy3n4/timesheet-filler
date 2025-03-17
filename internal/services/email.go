@@ -1,6 +1,8 @@
 package services
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"log"
@@ -11,6 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
+	mailjet "github.com/mailjet/mailjet-apiv3-go"
+	"github.com/oracle/oci-go-sdk/v65/common"
+	"github.com/oracle/oci-go-sdk/v65/emaildataplane"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
@@ -18,6 +23,8 @@ import (
 const (
 	ProviderSendGrid EmailProvider = "sendgrid"
 	ProviderAWSSES   EmailProvider = "ses"
+	ProviderOCIEmail EmailProvider = "oci"
+	ProviderMailJet  EmailProvider = "mailjet"
 )
 
 type EmailProvider string
@@ -32,6 +39,11 @@ type EmailService struct {
 	AWSRegion          string
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
+	OCIConfigProvider  common.ConfigurationProvider
+	OCICompartmentID   string
+	OCIEndpointSuffix  string
+	MailJetAPIKey      string
+	MailJetSecretKey   string
 }
 
 type EmailAttachment struct {
@@ -40,8 +52,24 @@ type EmailAttachment struct {
 	Data        []byte
 }
 
-func NewEmailService(provider EmailProvider, fromEmail, fromName string, defaultTos []string, sendGridAPIKey string, awsRegion string, awsAccessKeyID string, awsSecretAccessKey string) *EmailService {
+func NewEmailService(
+	provider EmailProvider,
+	fromEmail, fromName string,
+	defaultTos []string,
+	sendGridAPIKey string,
+	awsRegion string,
+	awsAccessKeyID string,
+	awsSecretAccessKey string,
+	ociConfigPath string,
+	ociProfileName string,
+	ociCompartmentID string,
+	ociEndpointSuffix string,
+	mailJetAPIKey string,
+	mailJetSecretKey string,
+) *EmailService {
 	isInitialized := false
+
+	var ociConfigProvider common.ConfigurationProvider
 
 	switch provider {
 	case ProviderSendGrid:
@@ -54,6 +82,30 @@ func NewEmailService(provider EmailProvider, fromEmail, fromName string, default
 		if !isInitialized {
 			log.Println("Warning: AWS SES email service not properly initialized. Missing AWS credentials or sender email.")
 		}
+	case ProviderOCIEmail:
+		if ociConfigPath != "" {
+			ociConfigProvider = common.CustomProfileConfigProvider(ociConfigPath, ociProfileName)
+		} else {
+			ociConfigProvider = common.DefaultConfigProvider()
+		}
+		_, err := ociConfigProvider.TenancyOCID()
+		if err != nil {
+			log.Println("Warning: OCI email service not properly initialized. Missing OCI credentials.")
+		}
+		isInitialized = err == nil && ociCompartmentID != "" && fromEmail != ""
+
+		if !isInitialized {
+			log.Println("Warning: OCI email service not properly initialized. Missing OCI compartment ID or sender email.")
+			if err != nil {
+				log.Printf("OCI configuration error: %v", err)
+			}
+		}
+	case ProviderMailJet:
+		isInitialized = mailJetAPIKey != "" && mailJetSecretKey != "" && fromEmail != ""
+		if !isInitialized {
+			log.Println("Watning: MailJet email service not properly initialized. Missing MailJet API keys or sender email.")
+		}
+
 	default:
 		log.Println("Warning: Unknown email provider specified.")
 	}
@@ -72,10 +124,19 @@ func NewEmailService(provider EmailProvider, fromEmail, fromName string, default
 		AWSRegion:          awsRegion,
 		AWSAccessKeyID:     awsAccessKeyID,
 		AWSSecretAccessKey: awsSecretAccessKey,
+		OCIConfigProvider:  ociConfigProvider,
+		OCICompartmentID:   ociCompartmentID,
+		OCIEndpointSuffix:  ociEndpointSuffix,
+		MailJetAPIKey:      mailJetAPIKey,
+		MailJetSecretKey:   mailJetSecretKey,
 	}
 }
 
-func (s *EmailService) SendEmailWithAttachment(subject, body string, to, cc []string, attachment *EmailAttachment) error {
+func (s *EmailService) SendEmailWithAttachment(
+	subject, body string,
+	to, cc []string,
+	attachment *EmailAttachment,
+) error {
 	if !s.IsInitialized {
 		return fmt.Errorf("email service not properly initialized")
 	}
@@ -85,12 +146,22 @@ func (s *EmailService) SendEmailWithAttachment(subject, body string, to, cc []st
 		return s.sendWithSendGrid(to, cc, subject, body, attachment)
 	case ProviderAWSSES:
 		return s.sendWithAWSSES(to, cc, subject, body, attachment)
+	case ProviderOCIEmail:
+		return s.sendWithOCIEmail(to, cc, subject, body, attachment)
+	case ProviderMailJet:
+		return s.sendWithMailJet(to, cc, subject, body, attachment)
 	default:
 		return fmt.Errorf("unknown email provider: %s", s.Provider)
 	}
 }
 
-func (s *EmailService) sendWithSendGrid(to []string, cc []string, subject string, body string, attachment *EmailAttachment) error {
+func (s *EmailService) sendWithSendGrid(
+	to []string,
+	cc []string,
+	subject string,
+	body string,
+	attachment *EmailAttachment,
+) error {
 	from := mail.NewEmail(s.FromName, s.FromEmail)
 
 	message := mail.NewV3Mail()
@@ -177,7 +248,13 @@ func (s *EmailService) sendWithAWSSES(
 	return nil
 }
 
-func (s *EmailService) createSESRawMessage(to []string, cc []string, subject string, body string, attachment *EmailAttachment) (string, error) {
+func (s *EmailService) createSESRawMessage(
+	to []string,
+	cc []string,
+	subject string,
+	body string,
+	attachment *EmailAttachment,
+) (string, error) {
 	// Generate a boundary for the multipart message
 	boundary := fmt.Sprintf("Multipart_Boundary_%d", time.Now().UnixNano())
 
@@ -224,6 +301,155 @@ func (s *EmailService) createSESRawMessage(to []string, cc []string, subject str
 	message.WriteString(fmt.Sprintf("--%s--", boundary))
 
 	return message.String(), nil
+}
+
+func (s *EmailService) sendWithOCIEmail(to, cc []string, subject, body string, attachment *EmailAttachment) error {
+	ctx := context.Background()
+
+	client, err := emaildataplane.NewEmailDPClientWithConfigurationProvider(s.OCIConfigProvider)
+	if err != nil {
+		log.Printf("Error creating OCI Email client: %v", err)
+		return err
+	}
+
+	toAddresses := make([]emaildataplane.EmailAddress, len(to))
+	for i, addr := range to {
+		toAddresses[i] = emaildataplane.EmailAddress{
+			Email: common.String(addr),
+		}
+	}
+
+	ccAddresses := make([]emaildataplane.EmailAddress, len(cc))
+	for i, addr := range cc {
+		ccAddresses[i] = emaildataplane.EmailAddress{
+			Email: common.String(addr),
+		}
+	}
+
+	recipients := &emaildataplane.Recipients{
+		To: toAddresses,
+	}
+	if len(cc) > 0 {
+		recipients.Cc = ccAddresses
+	}
+
+	sender := &emaildataplane.Sender{
+		CompartmentId: common.String(s.OCICompartmentID),
+		SenderAddress: &emaildataplane.EmailAddress{
+			Email: common.String(s.FromEmail),
+			Name:  common.String(s.FromName),
+		},
+	}
+
+	headerFields := make(map[string]string)
+
+	submitDetails := emaildataplane.SubmitEmailDetails{
+		Subject:      common.String(subject),
+		BodyText:     common.String(body),
+		Recipients:   recipients,
+		Sender:       sender,
+		HeaderFields: headerFields,
+	}
+
+	boundary := "unique-boundary-123"
+	mimeBody := bytes.Buffer{}
+
+	// Set MIME headers
+	headerFields = map[string]string{
+		"Content-Type": fmt.Sprintf("multipart/mixed; boundary=%d", time.Now().UnixNano()),
+		"MIME-Version": "1.0",
+	}
+
+	mimeBody.WriteString(fmt.Sprintf("\r\n--%s\r\n", boundary))
+	mimeBody.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+	mimeBody.WriteString("<html><body>Your email content</body></html>\r\n")
+
+	// Add attachment
+	mimeBody.WriteString(fmt.Sprintf("\r\n--%s\r\n", boundary))
+	mimeBody.WriteString("Content-Type: application/pdf\r\n")
+	mimeBody.WriteString("Content-Transfer-Encoding: base64\r\n")
+	mimeBody.WriteString("Content-Disposition: attachment; filename=\"document.pdf\"\r\n\r\n")
+	mimeBody.WriteString(base64.StdEncoding.EncodeToString(attachment.Data))
+	mimeBody.WriteString(fmt.Sprintf("\r\n--%s--", boundary))
+
+	submitDetails.BodyHtml = common.String(mimeBody.String())
+	submitDetails.HeaderFields = headerFields
+
+	submitReq := emaildataplane.SubmitEmailRequest{
+		SubmitEmailDetails: submitDetails,
+	}
+
+	resp, err := client.SubmitEmail(ctx, submitReq)
+	if err != nil {
+		log.Printf("Error submitting email: %v", err)
+		return err
+	}
+
+	log.Printf("Email sent successfully via OCI Email service with ID: %s", *resp.MessageId)
+	return nil
+}
+
+func (s *EmailService) sendWithMailJet(to, cc []string, subject, body string, attachment *EmailAttachment) error {
+	mailjetClient := mailjet.NewMailjetClient(s.MailJetAPIKey, s.MailJetSecretKey)
+
+	var toRecipients mailjet.RecipientsV31
+	for _, recipient := range to {
+		toRecipients = append(toRecipients, mailjet.RecipientV31{
+			Email: recipient,
+		})
+	}
+
+	var ccRecipients mailjet.RecipientsV31
+	for _, recipient := range cc {
+		ccRecipients = append(ccRecipients, mailjet.RecipientV31{
+			Email: recipient,
+		})
+	}
+
+	messages := mailjet.MessagesV31{
+		Info: []mailjet.InfoMessagesV31{
+			{
+				From: &mailjet.RecipientV31{
+					Email: s.FromEmail,
+					Name:  s.FromName,
+				},
+				To:       &toRecipients,
+				Cc:       &ccRecipients,
+				Subject:  subject,
+				TextPart: body,
+			},
+		},
+	}
+
+	if attachment != nil {
+		attachmentContent := base64.StdEncoding.EncodeToString(attachment.Data)
+		attachments := mailjet.AttachmentsV31{
+			{
+				ContentType:   attachment.ContentType,
+				Filename:      attachment.FileName,
+				Base64Content: attachmentContent,
+			},
+		}
+		messages.Info[0].Attachments = &attachments
+	}
+
+	response, err := mailjetClient.SendMailV31(&messages)
+	if err != nil {
+		log.Printf("Error sending email via MailJet: %v", err)
+		return err
+	}
+
+	if response.ResultsV31 != nil && len(response.ResultsV31) > 0 {
+		for _, result := range response.ResultsV31 {
+			if result.Status != "success" {
+				log.Printf("Email sent via MailJet failed with status: %s", result.Status)
+				return fmt.Errorf("failed to send email via MailJet, status: %s", result.Status)
+			} else {
+				log.Printf("Email sent successfully via MailJet with Status: %s", result.Status)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *EmailService) IsConfigured() bool {

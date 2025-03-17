@@ -89,6 +89,28 @@ spec:
                   name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.sendgridSecretName }}
                   key: sendgrid-api-key
             {{- end }}
+            {{- if and (eq .Values.email.provider "oci") (.Values.email.enabled) }}
+            - name: OCI_CONFIG_PATH
+              value: {{ .Values.email.ociConfigPath | quote }}
+            - name: OCI_PROFILE_NAME
+              value: {{ .Values.email.ociProfileName | quote }}
+            - name: OCI_COMPARTMENT_ID
+              value: {{ .Values.email.ociCompartmentID | quote }}
+            - name: OCI_ENDPOINT_SUFFIX
+              value: {{ .Values.email.ociEndpointSuffix | quote }}
+            {{- end }}
+            {{- if and (eq .Values.email.provider "mailjet") (.Values.email.enabled) }}
+            - name: MAILJET_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.mailjetSecretName }}
+                  key: mailjet-api-key
+            - name: MAILJET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.mailjetSecretName }}
+                  key: mailjet-secret-key
+            {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

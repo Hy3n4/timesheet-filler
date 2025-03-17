@@ -47,6 +47,12 @@ func main() {
 		case "ses":
 			provider = services.ProviderAWSSES
 			log.Printf("Email service initialized with AWS SES (region: %s)", cfg.AWSRegion)
+		case "oci":
+			provider = services.ProviderOCIEmail
+			log.Printf("Email service initialized with OCI Email (profile: %s)", cfg.OCICompartmentID)
+		case "mailjet":
+			provider = services.ProviderMailJet
+			log.Printf("Email service initialized with MailJet API")
 		default:
 			log.Printf("Unknown email provider: %s, defaulting to SendGrid", cfg.EmailProvider)
 			provider = services.ProviderSendGrid
@@ -61,11 +67,19 @@ func main() {
 			cfg.AWSRegion,
 			cfg.AWSAccessKeyID,
 			cfg.AWSSecretAccessKey,
+			cfg.OCIConfigPath,
+			cfg.OCIProfileName,
+			cfg.OCICompartmentID,
+			cfg.OCIEndpointSuffix,
+			cfg.MailJetAPIKey,
+			cfg.MailJetSecretKey,
 		)
 		log.Printf("Email service initialized with SendGrid API")
 	} else {
 		log.Println("Email service is disabled")
-		emailService = services.NewEmailService(services.ProviderSendGrid, "", "", nil, "", "", "", "")
+		emailService = services.NewEmailService(
+			services.ProviderSendGrid, "", "", nil, "", "", "", "", "", "", "", "", "", "",
+		)
 	}
 
 	// Initialize middlewares
