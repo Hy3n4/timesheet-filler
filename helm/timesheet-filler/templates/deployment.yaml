@@ -103,13 +103,23 @@ spec:
             - name: MAILJET_API_KEY
               valueFrom:
                 secretKeyRef:
+                {{- if .Values.email.existingSecret }}
+                  name: {{ .Values.email.existingSecret }}
+                  key: mailjet-api-key
+                {{- else}}
                   name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.mailjetSecretName }}
                   key: mailjet-api-key
+                {{- end}}
             - name: MAILJET_SECRET_KEY
               valueFrom:
                 secretKeyRef:
+                {{- if .Values.email.existingSecret }}
+                  name: {{ .Values.email.existingSecret }}
+                  key: mailjet-secret-key
+                {{- else}}
                   name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.mailjetSecretName }}
                   key: mailjet-secret-key
+                {{- end}}
             {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
