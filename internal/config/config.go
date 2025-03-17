@@ -40,7 +40,7 @@ func New() *Config {
 		TemplatePath:       getEnv("TEMPLATE_PATH", "gorily_timesheet_template_2024.xlsx"),
 		MaxUploadSize:      getEnvAsInt64("MAX_UPLOAD_SIZE", 16<<20), // 16MB
 		FileTokenExpiry:    getEnvAsDuration("FILE_TOKEN_EXPIRY", 24*time.Hour),
-		SheetName:          getEnv("SHEET_NAME", "docházka správců {CLUB_TYPE}"),
+		SheetName:          getEnv("SHEET_NAME", "docházka správců týmu"),
 		EmailEnabled:       getEnvAsBool("EMAIL_ENABLED", false),
 		EmailProvider:      getEnv("EMAIL_PROVIDER", "sendgrid"), // Default to SendGrid
 		SendGridAPIKey:     getEnv("SENDGRID_API_KEY", ""),

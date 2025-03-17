@@ -74,7 +74,6 @@ func main() {
 			cfg.MailJetAPIKey,
 			cfg.MailJetSecretKey,
 		)
-		log.Printf("Email service initialized with SendGrid API")
 	} else {
 		log.Println("Email service is disabled")
 		emailService = services.NewEmailService(
