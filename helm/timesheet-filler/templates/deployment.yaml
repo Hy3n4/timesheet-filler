@@ -115,10 +115,10 @@ spec:
                 secretKeyRef:
                 {{- if .Values.email.existingSecret }}
                   name: {{ .Values.email.existingSecret }}
-                  key: mailjet-secret-key
+                  key: mailjet-api-secret-key
                 {{- else}}
                   name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.mailjetSecretName }}
-                  key: mailjet-secret-key
+                  key: mailjet-api-secret-key
                 {{- end}}
             {{- end }}
       {{- with .Values.nodeSelector }}
