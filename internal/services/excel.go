@@ -9,6 +9,7 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
+	metrics "timesheet-filler/internal/metrics"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/utils"
 )
@@ -198,6 +199,7 @@ func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int
 
 // ProcessExcelFile generates an Excel report based on input data
 func (es *ExcelService) ProcessExcelFile(filterName string, tableData []models.TableRow) (*excelize.File, error) {
+	startTime := time.Now()
 	// Load the existing Excel template
 	templateFile, err := excelize.OpenFile(es.templatePath)
 	if err != nil {
@@ -278,6 +280,10 @@ func (es *ExcelService) ProcessExcelFile(filterName string, tableData []models.T
 			return nil, fmt.Errorf("failed to set note at %s: %w", cellNote, err)
 		}
 	}
+
+	m := metrics.GetMetrics()
+	m.RecordFileProcessed(metrics.StageProcess, metrics.StatusSuccess)
+	m.RecordProcessingDuration(metrics.StageProcess, time.Since(startTime))
 
 	return templateFile, nil
 }

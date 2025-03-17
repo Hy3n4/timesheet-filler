@@ -3,6 +3,7 @@ package services
 import (
 	"sync"
 	"time"
+	"timesheet-filler/internal/metrics"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/utils"
 )
@@ -34,6 +35,7 @@ func NewFileStore(expiryTime time.Duration, cleanupInterval time.Duration) *File
 }
 
 func (fs *FileStore) StoreFileData(data []byte, names []string, months []string, sheetName string) string {
+	startTime := time.Now()
 	token := utils.GenerateFileToken()
 
 	fs.fileMutex.Lock()
@@ -45,6 +47,10 @@ func (fs *FileStore) StoreFileData(data []byte, names []string, months []string,
 		Timestamp: time.Now(),
 	}
 	fs.fileMutex.Unlock()
+
+	m := metrics.GetMetrics()
+	m.RecordFileProcessed(metrics.StageStorage, metrics.StatusSuccess)
+	m.RecordProcessingDuration(metrics.StageStorage, time.Since(startTime))
 
 	return token
 }

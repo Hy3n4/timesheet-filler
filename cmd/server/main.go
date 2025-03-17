@@ -15,6 +15,7 @@ import (
 	"timesheet-filler/internal/config"
 	"timesheet-filler/internal/handlers"
 	"timesheet-filler/internal/i18n"
+	"timesheet-filler/internal/metrics"
 	"timesheet-filler/internal/middleware"
 	"timesheet-filler/internal/services"
 )
@@ -30,6 +31,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to initialize translator: %v", err)
 	}
+
+	// Initialize middlewares
+	metricsMiddleware := middleware.NewMetricsMiddleware()
+	loggingMiddleware := middleware.NewLoggingMiddleware()
+	languageMiddleware := middleware.NewLanguageMiddleware("en", []string{"en", "cs"})
+
+	metrics.SetMetrics(metricsMiddleware)
 
 	// Initialize services
 	fileStore := services.NewFileStore(cfg.FileTokenExpiry, 10*time.Minute)
@@ -80,11 +88,6 @@ func main() {
 			services.ProviderSendGrid, "", "", nil, "", "", "", "", "", "", "", "", "", "",
 		)
 	}
-
-	// Initialize middlewares
-	metricsMiddleware := middleware.NewMetricsMiddleware()
-	loggingMiddleware := middleware.NewLoggingMiddleware()
-	languageMiddleware := middleware.NewLanguageMiddleware("en", []string{"en", "cs"})
 
 	// Initialize handlers
 	uploadHandler := handlers.NewUploadHandler(excelService, fileStore, templateService, cfg.MaxUploadSize)
