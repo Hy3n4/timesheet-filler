@@ -1,4 +1,4 @@
-name: Build and Push Multi-Arch Docker Images
+name: Build and Push Docker Images
 
 on:
   workflow_dispatch:
@@ -17,54 +17,15 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Prepare common metadata for all architectures
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      tags: ${{ steps.meta.outputs.tags }}
-      labels: ${{ steps.meta.outputs.labels }}
-      version: ${{ steps.version.outputs.version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get version
-        id: version
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
-            echo "version=latest" >> $GITHUB_OUTPUT
-          else
-            SHA=$(git rev-parse --short HEAD)
-            echo "version=sha-${SHA}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            latest=${{ github.ref == 'refs/heads/main' }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
-
-  # Build for ARM64 on self-hosted runner
   build-arm64:
-    needs: prepare
-    runs-on: [self-hosted, arm64]
+    runs-on: self-hosted
+    outputs:
+      repo_lowercase: ${{ steps.repo_name.outputs.repo_lowercase }}
+      tag: ${{ steps.tag.outputs.tag }}
+      major: ${{ steps.tag.outputs.major }}
+      major_minor: ${{ steps.tag.outputs.major_minor }}
     permissions:
       contents: read
       packages: write
@@ -72,33 +33,49 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
+      - name: Set lowercase repository name
+        id: repo_name
+        run: |
+          REPO="${{ github.repository }}"
+          echo "repo_lowercase=${REPO,,}" >> $GITHUB_OUTPUT
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+            # Also set major.minor and major version tags
+            MAJOR=$(echo $TAG | cut -d. -f1)
+            MINOR=$(echo $TAG | cut -d. -f2)
+            echo "major=${MAJOR}" >> $GITHUB_OUTPUT
+            echo "major_minor=${MAJOR}.${MINOR}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Build and push to registry with the same tag but specifing platform
       - name: Build and push ARM64 image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/arm64
           push: true
-          tags: ${{ needs.prepare.outputs.tags }}
-          labels: ${{ needs.prepare.outputs.labels }}
-          cache-from: type=gha,scope=arm64-${{ github.ref_name }}
-          cache-to: type=gha,scope=arm64-${{ github.ref_name }},mode=max
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          tags: ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:arm64-${{ steps.tag.outputs.tag }}
           provenance: false
+          sbom: false
 
-  # Build for AMD64 on GitHub-hosted runner
   build-amd64:
-    needs: prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -107,50 +84,116 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
+      - name: Set lowercase repository name
+        id: repo_name
+        run: |
+          REPO="${{ github.repository }}"
+          echo "repo_lowercase=${REPO,,}" >> $GITHUB_OUTPUT
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Build and push to registry with the same tag but specifing platform
       - name: Build and push AMD64 image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ${{ needs.prepare.outputs.tags }}
-          labels: ${{ needs.prepare.outputs.labels }}
-          cache-from: type=gha,scope=amd64-${{ github.ref_name }}
-          cache-to: type=gha,scope=amd64-${{ github.ref_name }},mode=max
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          tags: ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:amd64-${{ steps.tag.outputs.tag }}
           provenance: false
+          sbom: false
 
-  # Create multi-arch manifest
   create-manifest:
-    needs: [prepare, build-arm64, build-amd64]
+    needs: [build-arm64, build-amd64]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
-      - name: Login to GitHub Container Registry
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase repository name
+        id: repo_name
+        run: |
+          REPO="${{ github.repository }}"
+          echo "repo_lowercase=${REPO,,}" >> $GITHUB_OUTPUT
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+            # Also set major.minor and major version tags
+            MAJOR=$(echo $TAG | cut -d. -f1)
+            MINOR=$(echo $TAG | cut -d. -f2)
+            echo "major=${MAJOR}" >> $GITHUB_OUTPUT
+            echo "major_minor=${MAJOR}.${MINOR}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create manifest Dockerfile
+        run: |
+          cat << EOF > Dockerfile.manifest
+          FROM scratch
+          # This is just a placeholder Dockerfile for manifest creation
+          CMD ["echo", "This is just a manifest, not a real image"]
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Create and push multi-architecture manifest
-      - name: Create and push manifest
-        uses: docker/build-push-action@v5
+      - name: Create and push multi-architecture manifest
+        uses: int128/docker-manifest-create-action@v2
         with:
-          push: true
-          tags: ${{ needs.prepare.outputs.tags }}
-          labels: ${{ needs.prepare.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:${{ steps.tag.outputs.tag }}
+          sources: |
+            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:amd64-${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:arm64-${{ steps.tag.outputs.tag }}
+
+      - name: Create version tag manifests
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: int128/docker-manifest-create-action@v2
+        with:
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:${{ steps.tag.outputs.major_minor }}
+            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:${{ steps.tag.outputs.major }}
+          sources: |
+            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:amd64-${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:arm64-${{ steps.tag.outputs.tag }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.tag.outputs.tag }}
+          draft: false
+          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
