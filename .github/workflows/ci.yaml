@@ -164,14 +164,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:amd64-${{ steps.tag.outputs.tag }}
             ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:arm64-${{ steps.tag.outputs.tag }}
 
-      - name: Create version tag manifests
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: int128/docker-manifest-create-action@v2
-        with:
-          sources: |
-            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:amd64-${{ steps.tag.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ steps.repo_name.outputs.repo_lowercase }}:arm64-${{ steps.tag.outputs.tag }}
-
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1

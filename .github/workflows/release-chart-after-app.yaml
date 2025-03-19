@@ -22,7 +22,7 @@ jobs:
       - name: Check if build was triggered by version tag
         id: check_tag
         run: |
-          # Get the head_ref or head_sha from the triggering workflow
+          # Get the head_sha from the triggering workflow
           HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
           echo "Workflow was triggered by commit: $HEAD_SHA"
 
@@ -31,7 +31,7 @@ jobs:
           echo "Tags on this commit: $TAGS"
 
           # Check if any of those tags match our version pattern
-          VERSION_TAG=$(echo "$TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          VERSION_TAG=$(echo "$TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | tail -n 1)
 
           if [ -n "$VERSION_TAG" ]; then
             echo "Found version tag: $VERSION_TAG"
@@ -39,7 +39,7 @@ jobs:
             echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
             VERSION=${VERSION_TAG#v}
             echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "helm_tag=helm-$VERSION_TAG" >> $GITHUB_OUTPUT
+            echo "helm_tag=helm-v$VERSION" >> $GITHUB_OUTPUT
           else
             echo "No version tag found on this commit."
             echo "is_version_tag=false" >> $GITHUB_OUTPUT
@@ -47,40 +47,81 @@ jobs:
 
       - name: Update Chart Versions
         if: steps.check_tag.outputs.is_version_tag == 'true'
+        id: update_chart
         run: |
           APP_VERSION="${{ steps.check_tag.outputs.version }}"
           CHART_VERSION="${{ steps.check_tag.outputs.version }}"
 
           echo "Updating chart to version $CHART_VERSION and appVersion $APP_VERSION"
 
-          # Update Chart.yaml
+          # Check current versions in Chart.yaml
           CHART_PATH="helm/timesheet-filler/Chart.yaml"
-          sed -i "s/^version:.*/version: $CHART_VERSION/" $CHART_PATH
-          sed -i "s/^appVersion:.*/appVersion: \"$APP_VERSION\"/" $CHART_PATH
+          CURRENT_VERSION=$(grep -E "^version:" $CHART_PATH | awk '{print $2}')
+          CURRENT_APP_VERSION=$(grep -E "^appVersion:" $CHART_PATH | awk '{print $2}' | tr -d '"')
 
-          echo "Updated Chart.yaml:"
-          cat $CHART_PATH
+          echo "Current chart version: $CURRENT_VERSION"
+          echo "Current appVersion: $CURRENT_APP_VERSION"
 
-          # Commit the changes
+          # Check if versions need to be updated
+          if [ "$CURRENT_VERSION" == "$CHART_VERSION" ] && [ "$CURRENT_APP_VERSION" == "$APP_VERSION" ]; then
+            echo "Chart.yaml is already up to date. No changes needed."
+            echo "changes_made=false" >> $GITHUB_OUTPUT
+          else
+            # Update Chart.yaml
+            sed -i "s/^version:.*/version: $CHART_VERSION/" $CHART_PATH
+            sed -i "s/^appVersion:.*/appVersion: \"$APP_VERSION\"/" $CHART_PATH
+
+            echo "Updated Chart.yaml:"
+            cat $CHART_PATH
+
+            echo "changes_made=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit changes if needed
+        if: steps.check_tag.outputs.is_version_tag == 'true' && steps.update_chart.outputs.changes_made == 'true'
+        run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add $CHART_PATH
-          git commit -m "Update Helm chart version to $CHART_VERSION [skip ci]"
+          git add helm/timesheet-filler/Chart.yaml
+          git commit -m "Update Helm chart version to ${{ steps.check_tag.outputs.version }} [skip ci]"
           git push origin HEAD:main
+          echo "Changes committed and pushed."
 
-      - name: Create Helm Chart Tag
+      - name: Check if Helm tag already exists
         if: steps.check_tag.outputs.is_version_tag == 'true'
+        id: check_helm_tag
+        run: |
+          HELM_TAG="${{ steps.check_tag.outputs.helm_tag }}"
+
+          # Check if tag already exists
+          if git tag | grep -q "^$HELM_TAG$"; then
+            echo "Tag $HELM_TAG already exists."
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $HELM_TAG does not exist."
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and Push Helm Chart Tag
+        if: steps.check_tag.outputs.is_version_tag == 'true' && steps.check_helm_tag.outputs.tag_exists == 'false'
         run: |
           HELM_TAG="${{ steps.check_tag.outputs.helm_tag }}"
 
           echo "Creating Helm chart tag: $HELM_TAG"
+          git tag $HELM_TAG
+          git push origin $HELM_TAG
+          echo "Created and pushed tag: $HELM_TAG"
 
-          # Check if tag already exists
-          if git tag | grep -q "^$HELM_TAG$"; then
-            echo "Tag $HELM_TAG already exists. Skipping tag creation."
-          else
-            # Create and push tag
-            git tag $HELM_TAG
-            git push origin $HELM_TAG
-            echo "Created and pushed tag: $HELM_TAG"
-          fi
+      - name: Handle existing Helm tag
+        if: steps.check_tag.outputs.is_version_tag == 'true' && steps.check_helm_tag.outputs.tag_exists == 'true'
+        run: |
+          HELM_TAG="${{ steps.check_tag.outputs.helm_tag }}"
+          echo "Helm tag $HELM_TAG already exists."
+
+          # Force-update the tag to trigger the release workflow
+          git tag -d $HELM_TAG
+          git push origin :refs/tags/$HELM_TAG
+          git tag $HELM_TAG
+          git push origin $HELM_TAG
+
+          echo "Deleted and recreated tag: $HELM_TAG to trigger release workflow"
