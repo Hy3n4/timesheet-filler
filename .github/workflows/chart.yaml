@@ -3,8 +3,8 @@ name: Helm Chart Release
 on:
   workflow_dispatch:
     inputs:
-      helm_tag:
-        description: "Helm tag to release"
+      version:
+        description: "Helm version to release"
         required: true
   push:
     tags:
