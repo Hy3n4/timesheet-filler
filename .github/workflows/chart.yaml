@@ -1,6 +1,11 @@
 name: Helm Chart Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      helm_tag:
+        description: "Helm tag to release"
+        required: true
   push:
     tags:
       - "helm-v*.*.*"
@@ -57,10 +62,10 @@ jobs:
 
           # Update Chart.yaml version
           CHART_PATH="helm/timesheet-filler/Chart.yaml"
-          sed -i "s/^version:.*/version: $VERSION/" $CHART_PATH
+          sed -i "s|^version:.*|version: $VERSION|" $CHART_PATH
 
           # If appVersion is used, update that too
-          sed -i "s/^appVersion:.*/appVersion: $VERSION/" $CHART_PATH
+          sed -i "s|^appVersion:.*|appVersion: $VERSION|" $CHART_PATH
 
           echo "Updated chart version to $VERSION"
           cat $CHART_PATH
