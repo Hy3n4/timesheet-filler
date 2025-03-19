@@ -4,13 +4,6 @@ on:
   push:
     tags:
       - "helm-v*.*.*"
-  repository_dispatch:
-    types: [trigger-chart-release]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Override chart version (leave empty to use git tag)"
-        required: false
 
 permissions:
   contents: write
