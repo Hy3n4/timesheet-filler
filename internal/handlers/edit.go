@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"timesheet-filler/internal/contextkeys"
+	"timesheet-filler/internal/metrics"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
 	"timesheet-filler/internal/utils"
@@ -54,6 +55,9 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
+
+	m := metrics.GetMetrics()
+	m.RecordPersonSelection(name)
 
 	// Retrieve the stored file data
 	fileDataStruct, ok := h.fileStore.GetFileData(fileToken)

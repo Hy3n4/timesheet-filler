@@ -19,13 +19,14 @@ func (rr *ResponseRecorder) WriteHeader(code int) {
 }
 
 type MetricsMiddleware struct {
-	requestCounter        *prometheus.CounterVec
-	requestDuration       *prometheus.HistogramVec
-	fileProcessingCounter *prometheus.CounterVec
-	fileProcessingErrors  *prometheus.CounterVec
-	processingDuration    *prometheus.HistogramVec
-	fileSizeHistogram     *prometheus.HistogramVec
-	rowCountHistogram     *prometheus.HistogramVec
+	requestCounter         *prometheus.CounterVec
+	requestDuration        *prometheus.HistogramVec
+	fileProcessingCounter  *prometheus.CounterVec
+	fileProcessingErrors   *prometheus.CounterVec
+	processingDuration     *prometheus.HistogramVec
+	fileSizeHistogram      *prometheus.HistogramVec
+	rowCountHistogram      *prometheus.HistogramVec
+	personSelectionCounter *prometheus.CounterVec
 }
 
 func NewMetricsMiddleware() *MetricsMiddleware {
@@ -89,6 +90,12 @@ func NewMetricsMiddleware() *MetricsMiddleware {
 		[]string{"stage"},
 	)
 
+	personSelectionCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "person_selection_count",
+			Help: "Number of times each person is selected for editing",
+		}, []string{"name"})
+
 	prometheus.MustRegister(requestCounter)
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(fileProcessingCounter)
@@ -96,15 +103,17 @@ func NewMetricsMiddleware() *MetricsMiddleware {
 	prometheus.MustRegister(processingDuration)
 	prometheus.MustRegister(fileSizeHistogram)
 	prometheus.MustRegister(rowCountHistogram)
+	prometheus.MustRegister(personSelectionCounter)
 
 	return &MetricsMiddleware{
-		requestCounter:        requestCounter,
-		requestDuration:       requestDuration,
-		fileProcessingCounter: fileProcessingCounter,
-		fileProcessingErrors:  fileProcessingErrors,
-		processingDuration:    processingDuration,
-		fileSizeHistogram:     fileSizeHistogram,
-		rowCountHistogram:     rowCountHistogram,
+		requestCounter:         requestCounter,
+		requestDuration:        requestDuration,
+		fileProcessingCounter:  fileProcessingCounter,
+		fileProcessingErrors:   fileProcessingErrors,
+		processingDuration:     processingDuration,
+		fileSizeHistogram:      fileSizeHistogram,
+		rowCountHistogram:      rowCountHistogram,
+		personSelectionCounter: personSelectionCounter,
 	}
 }
 
@@ -171,4 +180,10 @@ func (m *MetricsMiddleware) RecordRowCount(stage string, count int) {
 	m.rowCountHistogram.With(prometheus.Labels{
 		"stage": stage,
 	}).Observe(float64(count))
+}
+
+func (m *MetricsMiddleware) RecordPersonSelection(name string) {
+	m.personSelectionCounter.With(prometheus.Labels{
+		"name": name,
+	}).Inc()
 }
