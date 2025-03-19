@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "helm-v*.*.*"
+    branches:
+      - main
 
 permissions:
   contents: write
