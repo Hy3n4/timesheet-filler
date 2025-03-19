@@ -3,9 +3,9 @@ entries:
   timesheet-filler:
   - apiVersion: v2
     appVersion: 0.0.5
-    created: "2025-03-19T13:20:27.752206955Z"
+    created: "2025-03-19T14:01:54.904480328Z"
     description: A Helm chart for the Excel Processing Web Application
-    digest: c61bd5983d70352dc2f18e6f64d4904f167f5dc768e2717e7de7e15562f6c4a1
+    digest: 1cb19b447d25fe93a45487e0f0f8a46dcfe8e44bc8ae4e973f87eac5b8bb29ae
     name: timesheet-filler
     type: application
     urls:
@@ -41,4 +41,4 @@ entries:
     urls:
     - https://github.com/Hy3n4/timesheet-filler/releases/download/v0.0.1/timesheet-filler-0.0.1.tgz
     version: 0.0.1
-generated: "2025-03-19T13:20:27.75175322Z"
+generated: "2025-03-19T14:01:54.904009677Z"
