@@ -3,5 +3,5 @@ icon: https://helm.sh/img/helm.svg
 name: timesheet-filler
 description: A Helm chart for the Excel Processing Web Application
 type: application
-version: 0.0.4
-appVersion: 0.0.4
+version: 0.0.6
+appVersion: "0.0.6"
