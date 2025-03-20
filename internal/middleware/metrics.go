@@ -94,7 +94,7 @@ func NewMetricsMiddleware() *MetricsMiddleware {
 		prometheus.CounterOpts{
 			Name: "person_selection_count",
 			Help: "Number of times each person is selected for editing",
-		}, []string{"name"})
+		}, []string{"person"})
 
 	prometheus.MustRegister(requestCounter)
 	prometheus.MustRegister(requestDuration)
@@ -182,8 +182,8 @@ func (m *MetricsMiddleware) RecordRowCount(stage string, count int) {
 	}).Observe(float64(count))
 }
 
-func (m *MetricsMiddleware) RecordPersonSelection(name string) {
+func (m *MetricsMiddleware) RecordPersonSelection(person string) {
 	m.personSelectionCounter.With(prometheus.Labels{
-		"name": name,
+		"person": person,
 	}).Inc()
 }
