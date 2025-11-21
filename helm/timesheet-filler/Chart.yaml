@@ -2,8 +2,8 @@ apiVersion: v2
 name: timesheet-filler
 description: A web application for processing Excel timesheet files with multi-provider email support including Resend, SendGrid, AWS SES, OCI Email, and MailJet
 type: application
-version: 1.0.0
-appVersion: "1.0.0"
+version: 0.0.7
+appVersion: "0.0.7"
 
 # Chart metadata
 home: https://github.com/your-username/timesheet-filler
