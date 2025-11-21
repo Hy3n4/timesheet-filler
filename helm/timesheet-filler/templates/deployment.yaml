@@ -1,126 +1,182 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "timesheet-filler.fullname" . }}
   labels:
-    app: {{ .Release.Name }}
-    release: {{ .Release.Name }}
+    {{- include "timesheet-filler.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
-      release: {{ .Release.Name }}
+      {{- include "timesheet-filler.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
-        app: {{ .Release.Name }}
-        release: {{ .Release.Name }}
+        {{- include "timesheet-filler.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "timesheet-filler.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: timesheet-filler
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: 8080
-              name: http
-            - containerPort: 9180
-              name: metrics
+            - name: http
+              containerPort: {{ .Values.app.port | default 8080 }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.app.metricsPort | default 9180 }}
+              protocol: TCP
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 15
-            timeoutSeconds: 2
-            failureThreshold: 3
-            successThreshold: 1
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 2
-            failureThreshold: 3
-            successThreshold: 1
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env:
+            # Core application configuration
+            - name: PORT
+              value: {{ .Values.app.port | default 8080 | quote }}
+            - name: METRICS_PORT
+              value: {{ .Values.app.metricsPort | default 9180 | quote }}
+            - name: TEMPLATE_DIR
+              value: {{ .Values.app.templateDir | default "templates" | quote }}
+            - name: TEMPLATE_PATH
+              value: {{ .Values.app.templatePath | default "gorily_timesheet_template_2024.xlsx" | quote }}
+            - name: MAX_UPLOAD_SIZE
+              value: {{ .Values.app.maxUploadSize | default 16777216 | quote }}
+            - name: FILE_TOKEN_EXPIRY
+              value: {{ .Values.app.fileTokenExpiry | default "24h" | quote }}
+            - name: SHEET_NAME
+              value: {{ .Values.app.sheetName | default "docházka správců týmu" | quote }}
+
+            # Email configuration
             - name: EMAIL_ENABLED
               value: {{ .Values.email.enabled | quote }}
+            {{- if .Values.email.enabled }}
             - name: EMAIL_PROVIDER
               value: {{ .Values.email.provider | quote }}
             - name: EMAIL_FROM_NAME
               value: {{ .Values.email.fromName | quote }}
             - name: EMAIL_FROM_EMAIL
               value: {{ .Values.email.fromEmail | quote }}
+            {{- if .Values.email.defaultRecipients }}
             - name: EMAIL_RECIPIENTS
               value: {{ join "," .Values.email.defaultRecipients | quote }}
-            {{- if and (eq .Values.email.provider "ses") (.Values.email.enabled) }}
-            - name: AWS_REGION
-              value: {{ .Values.email.awsRegion | quote }}
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                {{- if .Values.email.existingSecret }}
-                  name: {{ .Values.email.existingSecret }}
-                  key: aws-access-key-id
-                {{- else}}
-                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.awsSecretName }}
-                  key: aws-access-key-id
-                {{- end }}
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                {{- if .Values.email.existingSecret }}
-                  name: {{ .Values.email.existingSecret }}
-                  key: aws-secret-access-key
-                {{- else}}
-                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.awsSecretName }}
-                  key: aws-secret-access-key
-                {{- end }}
             {{- end }}
-            {{- if and (eq .Values.email.provider "sendgrid") (.Values.email.enabled) }}
+
+            # SendGrid configuration
+            {{- if eq .Values.email.provider "sendgrid" }}
+            {{- if .Values.email.sendgrid.apiKey }}
             - name: SENDGRID_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.sendgridSecretName }}
+                  name: {{ .Values.email.existingSecret | default (printf "%s-email-credentials" (include "timesheet-filler.fullname" .)) }}
                   key: sendgrid-api-key
             {{- end }}
-            {{- if and (eq .Values.email.provider "oci") (.Values.email.enabled) }}
-            - name: OCI_CONFIG_PATH
-              value: {{ .Values.email.ociConfigPath | quote }}
-            - name: OCI_PROFILE_NAME
-              value: {{ .Values.email.ociProfileName | quote }}
-            - name: OCI_COMPARTMENT_ID
-              value: {{ .Values.email.ociCompartmentID | quote }}
-            - name: OCI_ENDPOINT_SUFFIX
-              value: {{ .Values.email.ociEndpointSuffix | quote }}
             {{- end }}
-            {{- if and (eq .Values.email.provider "mailjet") (.Values.email.enabled) }}
+
+            # AWS SES configuration
+            {{- if eq .Values.email.provider "ses" }}
+            - name: AWS_REGION
+              value: {{ .Values.email.ses.region | default "eu-central-1" | quote }}
+            {{- if .Values.email.ses.accessKeyId }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.email.existingSecret | default (printf "%s-email-credentials" (include "timesheet-filler.fullname" .)) }}
+                  key: aws-access-key-id
+            {{- end }}
+            {{- if .Values.email.ses.secretAccessKey }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.email.existingSecret | default (printf "%s-email-credentials" (include "timesheet-filler.fullname" .)) }}
+                  key: aws-secret-access-key
+            {{- end }}
+            {{- end }}
+
+            # OCI Email configuration
+            {{- if eq .Values.email.provider "oci" }}
+            {{- if .Values.email.oci.configPath }}
+            - name: OCI_CONFIG_PATH
+              value: {{ .Values.email.oci.configPath | quote }}
+            {{- end }}
+            {{- if .Values.email.oci.profileName }}
+            - name: OCI_PROFILE_NAME
+              value: {{ .Values.email.oci.profileName | quote }}
+            {{- end }}
+            {{- if .Values.email.oci.compartmentId }}
+            - name: OCI_COMPARTMENT_ID
+              value: {{ .Values.email.oci.compartmentId | quote }}
+            {{- end }}
+            {{- if .Values.email.oci.endpointSuffix }}
+            - name: OCI_ENDPOINT_SUFFIX
+              value: {{ .Values.email.oci.endpointSuffix | quote }}
+            {{- end }}
+            {{- end }}
+
+            # MailJet configuration
+            {{- if eq .Values.email.provider "mailjet" }}
+            {{- if .Values.email.mailjet.apiKey }}
             - name: MAILJET_API_KEY
               valueFrom:
                 secretKeyRef:
-                {{- if .Values.email.existingSecret }}
-                  name: {{ .Values.email.existingSecret }}
+                  name: {{ .Values.email.existingSecret | default (printf "%s-email-credentials" (include "timesheet-filler.fullname" .)) }}
                   key: mailjet-api-key
-                {{- else}}
-                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.mailjetSecretName }}
-                  key: mailjet-api-key
-                {{- end}}
+            {{- end }}
+            {{- if .Values.email.mailjet.secretKey }}
             - name: MAILJET_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                {{- if .Values.email.existingSecret }}
-                  name: {{ .Values.email.existingSecret }}
-                  key: mailjet-api-secret-key
-                {{- else}}
-                  name: {{ default (printf "%s-email-credentials" .Release.Name) .Values.email.mailjetSecretName }}
-                  key: mailjet-api-secret-key
-                {{- end}}
+                  name: {{ .Values.email.existingSecret | default (printf "%s-email-credentials" (include "timesheet-filler.fullname" .)) }}
+                  key: mailjet-secret-key
             {{- end }}
+            {{- end }}
+
+            # Resend configuration
+            {{- if eq .Values.email.provider "resend" }}
+            {{- if .Values.email.resend.apiKey }}
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.email.existingSecret | default (printf "%s-email-credentials" (include "timesheet-filler.fullname" .)) }}
+                  key: resend-api-key
+            {{- end }}
+            {{- end }}
+
+            {{- end }}
+
+            # Additional custom environment variables
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

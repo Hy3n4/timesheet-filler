@@ -1,7 +1,93 @@
 apiVersion: v2
-icon: https://helm.sh/img/helm.svg
 name: timesheet-filler
-description: A Helm chart for the Excel Processing Web Application
+description: A web application for processing Excel timesheet files with multi-provider email support including Resend, SendGrid, AWS SES, OCI Email, and MailJet
 type: application
-version: 0.0.6
-appVersion: "0.0.6"
+version: 1.0.0
+appVersion: "1.0.0"
+
+# Chart metadata
+home: https://github.com/your-username/timesheet-filler
+sources:
+  - https://github.com/your-username/timesheet-filler
+
+# Icon for the chart (using a more appropriate spreadsheet/timesheet icon)
+icon: https://raw.githubusercontent.com/your-username/timesheet-filler/main/templates/favicon/favicon.svg
+
+# Keywords for chart discoverability
+keywords:
+  - timesheet
+  - excel
+  - spreadsheet
+  - processing
+  - email
+  - resend
+  - sendgrid
+  - aws-ses
+  - mailjet
+  - oci-email
+  - web-application
+  - golang
+  - business-tools
+
+# Maintainer information
+maintainers:
+  - name: Timesheet Filler Team
+    email: maintainer@example.com
+
+# Chart annotations
+annotations:
+  # Category for Artifact Hub
+  artifacthub.io/category: productivity
+
+  # Changes in this version
+  artifacthub.io/changes: |
+    - Added comprehensive Resend.com email provider support
+    - Improved email configuration with all major providers
+    - Enhanced Helm chart with better templating and validation
+    - Added ServiceMonitor support for Prometheus monitoring
+    - Improved secret management for email credentials
+    - Added HorizontalPodAutoscaler support
+    - Enhanced documentation and examples
+
+  # License information
+  artifacthub.io/license: MIT
+
+  # Links to documentation
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/your-username/timesheet-filler/blob/main/README.md
+    - name: Resend Migration Guide
+      url: https://github.com/your-username/timesheet-filler/blob/main/examples/RESEND_MIGRATION.md
+
+  # Screenshots or images
+  artifacthub.io/screenshots: |
+    - title: Upload Interface
+      url: https://raw.githubusercontent.com/your-username/timesheet-filler/main/screenshot.png
+
+  # Supported Kubernetes versions
+  artifacthub.io/kubeVersion: ">=1.19.0-0"
+
+  # Prerelease flag (set to "false" for stable releases)
+  artifacthub.io/prerelease: "false"
+
+  # Container images used by this chart
+  artifacthub.io/images: |
+    - name: timesheet-filler
+      image: ghcr.io/hy3n4/timesheet-filler:latest
+
+  # Email provider support
+  timesheet-filler.io/email-providers: "sendgrid,ses,oci,mailjet,resend"
+
+  # Features supported
+  timesheet-filler.io/features: "excel-processing,email-notifications,multi-language,metrics"
+
+# Minimum Kubernetes version required
+kubeVersion: ">=1.19.0-0"
+
+# Dependencies (none currently, but structure ready for future dependencies)
+dependencies: []
+  # Example dependency structure:
+  # - name: postgresql
+  #   version: "11.x.x"
+  #   repository: https://charts.bitnami.com/bitnami
+  #   condition: postgresql.enabled

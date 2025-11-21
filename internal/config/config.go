@@ -27,6 +27,7 @@ type Config struct {
 	OCIEndpointSuffix  string
 	MailJetAPIKey      string
 	MailJetSecretKey   string
+	ResendAPIKey       string
 	EmailFromName      string
 	EmailFromEmail     string
 	Emailrecipients    []string
@@ -53,6 +54,7 @@ func New() *Config {
 		OCIEndpointSuffix:  getEnv("OCI_ENDPOINT_SUFFIX", "oraclecloud.com"),
 		MailJetAPIKey:      getEnv("MAILJET_API_KEY", ""),
 		MailJetSecretKey:   getEnv("MAILJET_SECRET_KEY", ""),
+		ResendAPIKey:       getEnv("RESEND_API_KEY", ""),
 		EmailFromName:      getEnv("EMAIL_FROM_NAME", "Timesheet Filler"),
 		EmailFromEmail:     getEnv("EMAIL_FROM_EMAIL", "gorily.vykaz@hy3n4.com"),
 		Emailrecipients:    getEnvAsStringSlice("EMAIL_RECIPIENTS", []string{"hy3nk4@gmail.com"}),

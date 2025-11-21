@@ -1,56 +1,113 @@
 # Default values for timesheet-filler.
-email:
-  enabled: true
-  provider: mailjet
-  awsRegion: eu-central-1
-  fromName: Timesheet Filler
-  fromEmail: timesheet-filler@example.com
-  defaultRecipients: []
-  existingSecret: ""
-  awsAccessKeyID: "test"
-  awsSecretAccessKey: "test"
-  ociConfigPath: ""
-  ociProfileName: "DEFAULT"
-  ociCompartmentID: "ocid1.compartment.oc1..example"
-  ociEndpointSuffix: "oraclecloud.com"
-  mailjetAPIKey: ""
-  mailjetSecretKey: ""
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
 
 replicaCount: 1
 
 image:
   repository: ghcr.io/hy3n4/timesheet-filler
   pullPolicy: Always
-  tag: latest
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
 
-prometheus:
+# Application configuration
+app:
+  # Core application settings
+  port: 8080
+  metricsPort: 9180
+  templateDir: templates
+  templatePath: gorily_timesheet_template_2024.xlsx
+  maxUploadSize: 16777216  # 16MB in bytes
+  fileTokenExpiry: 24h
+  sheetName: "docházka správců týmu"
+
+# Email configuration
+email:
+  # Enable/disable email functionality
   enabled: false
-  path: /metrics
-  port: 9180
 
+  # Email provider selection
+  # Supported providers: sendgrid, ses, oci, mailjet, resend
+  provider: resend
+
+  # Sender configuration
+  fromName: "Timesheet Filler"
+  fromEmail: "noreply@example.com"
+
+  # Default recipients (comma-separated list)
+  defaultRecipients: []
+    # - "admin@example.com"
+    # - "hr@example.com"
+
+  # Use existing secret for email credentials instead of creating a new one
+  existingSecret: ""
+
+  # SendGrid configuration
+  sendgrid:
+    # SendGrid API key (stored in secret)
+    apiKey: ""
+
+  # AWS SES configuration
+  ses:
+    region: "eu-central-1"
+    # AWS credentials (stored in secret)
+    accessKeyId: ""
+    secretAccessKey: ""
+
+  # Oracle Cloud Infrastructure (OCI) Email configuration
+  oci:
+    configPath: ""
+    profileName: "DEFAULT"
+    compartmentId: ""
+    endpointSuffix: "oraclecloud.com"
+
+  # MailJet configuration
+  mailjet:
+    # MailJet API credentials (stored in secret)
+    apiKey: ""
+    secretKey: ""
+
+  # Resend configuration
+  resend:
+    # Resend API key (stored in secret)
+    apiKey: ""
+
+# Service configuration
 service:
   type: ClusterIP
   port: 80
   targetPort: 8080
 
+# Ingress configuration
 ingress:
-  enabled: true
-  className: "default-nginx"
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
-    external-dns.alpha.kubernetes.io/hostname: gorily.hy3n4.com
-    external-dns.alpha.kubernetes.io/ttl: "300"
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
-    - host: gorily.hy3n4.com
+    - host: timesheet-filler.local
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - hosts:
-        - gorily.hy3n4.com
-      secretName: gorily-ingress-tls
+  tls: []
+    # - secretName: timesheet-filler-tls
+    #   hosts:
+    #     - timesheet-filler.local
 
+# Prometheus metrics configuration
+prometheus:
+  enabled: false
+  path: /metrics
+  port: 9180
+  # ServiceMonitor configuration (requires Prometheus Operator)
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    interval: 30s
+
+# Pod resource configuration
 resources:
   limits:
     cpu: 500m
@@ -59,8 +116,83 @@ resources:
     cpu: 250m
     memory: 128Mi
 
+# Horizontal Pod Autoscaling
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selection
 nodeSelector: {}
 
+# Tolerations for pod assignment
 tolerations: []
 
+# Affinity for pod assignment
 affinity: {}
+
+# Pod Security Context
+podSecurityContext: {}
+  # fsGroup: 2000
+
+# Security Context
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# Liveness probe configuration
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+# Readiness probe configuration
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+# Additional environment variables
+env: []
+  # - name: CUSTOM_VAR
+  #   value: "custom_value"
+
+# Additional volumes
+volumes: []
+
+# Additional volume mounts
+volumeMounts: []
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Service Account
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""

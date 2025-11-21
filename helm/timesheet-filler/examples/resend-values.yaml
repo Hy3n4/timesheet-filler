@@ -1,0 +1,182 @@
+# Example values file for deploying Timesheet Filler with Resend email support
+# Copy this file and modify the values according to your environment
+
+# Application configuration
+replicaCount: 2
+
+image:
+  repository: ghcr.io/hy3n4/timesheet-filler
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# Core application settings
+app:
+  port: 8080
+  metricsPort: 9180
+  templateDir: templates
+  templatePath: gorily_timesheet_template_2024.xlsx
+  maxUploadSize: 16777216  # 16MB
+  fileTokenExpiry: 24h
+  sheetName: "docházka správců týmu"
+
+# Email configuration with Resend
+email:
+  # Enable email functionality
+  enabled: true
+
+  # Use Resend as the email provider
+  provider: resend
+
+  # Sender configuration - MUST use your verified domain
+  fromName: "Timesheet System"
+  fromEmail: "noreply@yourdomain.com"  # Replace with your verified domain
+
+  # Default recipients for timesheet notifications
+  defaultRecipients:
+    - "admin@yourdomain.com"
+    - "hr@yourdomain.com"
+
+  # Resend configuration
+  resend:
+    # Your Resend API key - keep this secure!
+    # Get this from https://resend.com/api-keys
+    apiKey: "re_your_resend_api_key_here"
+
+  # Alternative: Use existing Kubernetes secret
+  # If you prefer to manage secrets separately, create a secret like this:
+  # kubectl create secret generic my-email-secret \
+  #   --from-literal=resend-api-key=re_your_api_key_here
+  # existingSecret: "my-email-secret"
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Ingress configuration for external access
+ingress:
+  enabled: true
+  className: "nginx"  # or your ingress class
+  annotations:
+    # Enable HTTPS with cert-manager
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Additional security headers
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Upload size limit (should match app.maxUploadSize)
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+  hosts:
+    - host: timesheet.yourdomain.com  # Replace with your domain
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: timesheet-tls
+      hosts:
+        - timesheet.yourdomain.com
+
+# Prometheus monitoring
+prometheus:
+  enabled: true
+  path: /metrics
+  port: 9180
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+    interval: 30s
+
+# Resource management
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Autoscaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534  # nobody user
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false  # App needs to write temporary files
+  runAsNonRoot: true
+  runAsUser: 65534
+
+# Node selection for production
+nodeSelector:
+  kubernetes.io/os: linux
+
+# Tolerations for dedicated nodes (optional)
+tolerations: []
+  # - key: "dedicated"
+  #   operator: "Equal"
+  #   value: "timesheet-filler"
+  #   effect: "NoSchedule"
+
+# Pod anti-affinity for high availability
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - timesheet-filler
+        topologyKey: kubernetes.io/hostname
+
+# Pod annotations for monitoring
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9180"
+  prometheus.io/path: "/metrics"
+
+# Environment variables (optional)
+env:
+  - name: TZ
+    value: "Europe/Prague"  # Set your timezone
+
+# ServiceAccount configuration
+serviceAccount:
+  create: true
+  automount: false  # Don't mount service account token (security best practice)
+  annotations:
+    # Add any required annotations for your environment

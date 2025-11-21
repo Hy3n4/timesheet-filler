@@ -7,6 +7,7 @@ require (
 	github.com/mailjet/mailjet-apiv3-go v0.0.0-20201009050126-c24bc15a9394
 	github.com/oracle/oci-go-sdk/v65 v65.86.0
 	github.com/prometheus/client_golang v1.20.4
+	github.com/resend/resend-go/v2 v2.11.0
 	github.com/sendgrid/sendgrid-go v3.16.0+incompatible
 	github.com/xuri/excelize/v2 v2.9.0
 	golang.org/x/text v0.19.0

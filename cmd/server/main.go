@@ -61,6 +61,9 @@ func main() {
 		case "mailjet":
 			provider = services.ProviderMailJet
 			log.Printf("Email service initialized with MailJet API")
+		case "resend":
+			provider = services.ProviderResend
+			log.Printf("Email service initialized with Resend API")
 		default:
 			log.Printf("Unknown email provider: %s, defaulting to SendGrid", cfg.EmailProvider)
 			provider = services.ProviderSendGrid
@@ -81,11 +84,12 @@ func main() {
 			cfg.OCIEndpointSuffix,
 			cfg.MailJetAPIKey,
 			cfg.MailJetSecretKey,
+			cfg.ResendAPIKey,
 		)
 	} else {
 		log.Println("Email service is disabled")
 		emailService = services.NewEmailService(
-			services.ProviderSendGrid, "", "", nil, "", "", "", "", "", "", "", "", "", "",
+			services.ProviderSendGrid, "", "", nil, "", "", "", "", "", "", "", "", "", "", "",
 		)
 	}
 
