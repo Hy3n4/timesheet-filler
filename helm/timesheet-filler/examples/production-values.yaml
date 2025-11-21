@@ -1,0 +1,329 @@
+# Production values file for Timesheet Filler with external secret management
+# This configuration is designed for production environments with proper security practices
+
+# Deployment configuration
+replicaCount: 3
+
+image:
+  repository: ghcr.io/hy3n4/timesheet-filler
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"  # Use specific version tags in production
+
+imagePullSecrets:
+  - name: ghcr-credentials  # If using private registry
+
+# Application configuration
+app:
+  port: 8080
+  metricsPort: 9180
+  templateDir: templates
+  templatePath: gorily_timesheet_template_2024.xlsx
+  maxUploadSize: 16777216  # 16MB
+  fileTokenExpiry: 24h
+  sheetName: "docházka správců týmu"
+
+# Email configuration using external secrets
+email:
+  enabled: true
+  provider: resend
+
+  # Production sender configuration
+  fromName: "Timesheet System"
+  fromEmail: "noreply@company.com"
+
+  # Production recipients
+  defaultRecipients:
+    - "admin@company.com"
+    - "hr@company.com"
+    - "finance@company.com"
+
+  # Use external secret instead of inline values
+  existingSecret: "timesheet-filler-email-credentials"
+
+  # Resend configuration (values will come from external secret)
+  resend:
+    apiKey: ""  # Will be populated from external secret
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Production ingress with security
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    # SSL and security
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # Upload size matching application limit
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" always;
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit: "10"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+
+    # External DNS (if using)
+    external-dns.alpha.kubernetes.io/hostname: timesheet.company.com
+    external-dns.alpha.kubernetes.io/ttl: "300"
+
+  hosts:
+    - host: timesheet.company.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+  tls:
+    - secretName: timesheet-company-tls
+      hosts:
+        - timesheet.company.com
+
+# Comprehensive monitoring setup
+prometheus:
+  enabled: true
+  path: /metrics
+  port: 9180
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus-operator
+      prometheus: kube-prometheus
+    interval: 15s
+    scrapeTimeout: 10s
+    metricRelabelings:
+      - sourceLabels: [__name__]
+        regex: 'go_.*'
+        action: drop
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: pod
+      - sourceLabels: [__meta_kubernetes_pod_container_name]
+        targetLabel: container
+
+# Production resource configuration
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# Horizontal pod autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+# Production health checks
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+    httpHeaders:
+      - name: User-Agent
+        value: "k8s-liveness-probe"
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+    httpHeaders:
+      - name: User-Agent
+        value: "k8s-readiness-probe"
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+# Security contexts
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534  # nobody
+  runAsGroup: 65534
+  fsGroup: 65534
+  fsGroupChangePolicy: "OnRootMismatch"
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false  # App needs temp file access
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+# Node selection for production workloads
+nodeSelector:
+  kubernetes.io/os: linux
+  node-role.kubernetes.io/worker: "true"
+
+# Tolerations for dedicated nodes
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "applications"
+    effect: "NoSchedule"
+
+# High availability anti-affinity
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - timesheet-filler
+        topologyKey: kubernetes.io/hostname
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - timesheet-filler
+          topologyKey: topology.kubernetes.io/zone
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Pod annotations
+podAnnotations:
+  # Monitoring annotations
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9180"
+  prometheus.io/path: "/metrics"
+
+  # Security scanning
+  container.apparmor.security.beta.kubernetes.io/timesheet-filler: runtime/default
+
+  # Backup annotations (if using Velero)
+  backup.velero.io/backup-volumes: "data"
+
+# Pod labels for organization
+podLabels:
+  environment: production
+  team: platform
+  cost-center: "hr-tools"
+
+# Environment variables
+env:
+  - name: TZ
+    value: "Europe/Prague"
+  - name: LOG_LEVEL
+    value: "info"
+  - name: GO_ENV
+    value: "production"
+
+# ServiceAccount with minimal permissions
+serviceAccount:
+  create: true
+  automount: false
+  annotations:
+    # AWS IAM role (if using IRSA)
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/timesheet-filler-role"
+    # Azure workload identity (if using)
+    azure.workload.identity/client-id: "client-id-here"
+
+# Network policy for security (requires CNI support)
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: nginx-ingress
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nginx-ingress
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS for Resend API
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow metrics collection
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9180
+
+# Volumes for temporary files (using emptyDir for security)
+volumes:
+  - name: tmp
+    emptyDir:
+      sizeLimit: 1Gi
+  - name: uploads
+    emptyDir:
+      sizeLimit: 100Mi
+
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: uploads
+    mountPath: /app/uploads
+
+# External secrets configuration (requires External Secrets Operator)
+# This is a separate resource that should be created alongside this chart
+externalSecrets:
+  enabled: true
+  secretStore: "vault-backend"  # or your secret store
+  secrets:
+    - name: timesheet-filler-email-credentials
+      data:
+        - secretKey: "resend-api-key"
+          remoteRef:
+            key: "timesheet-filler/resend"
+            property: "api-key"
+
+# Backup configuration (if using Velero)
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  ttl: "168h"  # 7 days

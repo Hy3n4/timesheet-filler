@@ -16,6 +16,7 @@ import (
 	mailjet "github.com/mailjet/mailjet-apiv3-go"
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/emaildataplane"
+	"github.com/resend/resend-go/v2"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
@@ -25,6 +26,7 @@ const (
 	ProviderAWSSES   EmailProvider = "ses"
 	ProviderOCIEmail EmailProvider = "oci"
 	ProviderMailJet  EmailProvider = "mailjet"
+	ProviderResend   EmailProvider = "resend"
 )
 
 type EmailProvider string
@@ -44,6 +46,7 @@ type EmailService struct {
 	OCIEndpointSuffix  string
 	MailJetAPIKey      string
 	MailJetSecretKey   string
+	ResendAPIKey       string
 }
 
 type EmailAttachment struct {
@@ -66,6 +69,7 @@ func NewEmailService(
 	ociEndpointSuffix string,
 	mailJetAPIKey string,
 	mailJetSecretKey string,
+	resendAPIKey string,
 ) *EmailService {
 	isInitialized := false
 
@@ -103,7 +107,12 @@ func NewEmailService(
 	case ProviderMailJet:
 		isInitialized = mailJetAPIKey != "" && mailJetSecretKey != "" && fromEmail != ""
 		if !isInitialized {
-			log.Println("Watning: MailJet email service not properly initialized. Missing MailJet API keys or sender email.")
+			log.Println("Warning: MailJet email service not properly initialized. Missing MailJet API keys or sender email.")
+		}
+	case ProviderResend:
+		isInitialized = resendAPIKey != "" && fromEmail != ""
+		if !isInitialized {
+			log.Println("Warning: Resend email service not properly initialized. Missing API key or sender email.")
 		}
 
 	default:
@@ -111,7 +120,7 @@ func NewEmailService(
 	}
 
 	if !isInitialized {
-		log.Println("Warning: Email service not fully initialized. Missing API key od sender email.")
+		log.Println("Warning: Email service not fully initialized. Missing API key or sender email.")
 	}
 
 	return &EmailService{
@@ -129,6 +138,7 @@ func NewEmailService(
 		OCIEndpointSuffix:  ociEndpointSuffix,
 		MailJetAPIKey:      mailJetAPIKey,
 		MailJetSecretKey:   mailJetSecretKey,
+		ResendAPIKey:       resendAPIKey,
 	}
 }
 
@@ -150,6 +160,8 @@ func (s *EmailService) SendEmailWithAttachment(
 		return s.sendWithOCIEmail(to, cc, subject, body, attachment)
 	case ProviderMailJet:
 		return s.sendWithMailJet(to, cc, subject, body, attachment)
+	case ProviderResend:
+		return s.sendWithResend(to, cc, subject, body, attachment)
 	default:
 		return fmt.Errorf("unknown email provider: %s", s.Provider)
 	}
@@ -164,44 +176,55 @@ func (s *EmailService) sendWithSendGrid(
 ) error {
 	from := mail.NewEmail(s.FromName, s.FromEmail)
 
-	message := mail.NewV3Mail()
-	message.SetFrom(from)
-	message.Subject = subject
+	// Create personalization
+	personalization := mail.NewPersonalization()
 
-	p := mail.NewPersonalization()
-	for _, toEmail := range to {
-		p.AddTos(mail.NewEmail("", toEmail))
+	// Add TO recipients
+	for _, recipient := range to {
+		personalization.AddTos(mail.NewEmail("", recipient))
 	}
 
-	for _, ccEmail := range cc {
-		p.AddCCs(mail.NewEmail("", ccEmail))
+	// Add CC recipients
+	for _, recipient := range cc {
+		personalization.AddCCs(mail.NewEmail("", recipient))
 	}
-	message.AddPersonalizations(p)
 
-	plainContent := mail.NewContent("text/plain", body)
-	message.AddContent(plainContent)
+	// Create email
+	m := mail.NewV3Mail()
+	m.SetFrom(from)
+	m.Subject = subject
+	m.AddPersonalizations(personalization)
 
+	// Add content
+	content := mail.NewContent("text/html", body)
+	m.AddContent(content)
+
+	// Add attachment if provided
 	if attachment != nil {
 		a := mail.NewAttachment()
-		a.SetContent(base64.StdEncoding.EncodeToString(attachment.Data))
-		a.SetType(attachment.ContentType)
 		a.SetFilename(attachment.FileName)
-		message.AddAttachment(a)
+		a.SetType(attachment.ContentType)
+		encoded := base64.StdEncoding.EncodeToString(attachment.Data)
+		a.SetContent(encoded)
+		a.SetDisposition("attachment")
+		m.AddAttachment(a)
 	}
 
-	client := sendgrid.NewSendClient(s.SendGridAPIKey)
-	response, err := client.Send(message)
+	// Send email
+	request := sendgrid.GetRequest(s.SendGridAPIKey, "/v3/mail/send", "https://api.sendgrid.com")
+	request.Method = "POST"
+	request.Body = mail.GetRequestBody(m)
+
+	response, err := sendgrid.API(request)
 	if err != nil {
-		log.Printf("SendgridError: %v", err)
-		return err
+		return fmt.Errorf("SendGrid API error: %v", err)
 	}
 
-	if response.StatusCode >= 400 {
-		log.Printf("SendGrid error: Status Code: %d, Body: %s", response.StatusCode, response.Body)
-		return fmt.Errorf("failed to send email, status code: %d", response.StatusCode)
+	if response.StatusCode >= 300 {
+		return fmt.Errorf("SendGrid API returned status %d: %s", response.StatusCode, response.Body)
 	}
 
-	log.Printf("Email sent successfully: %d", response.StatusCode)
+	log.Printf("Email sent successfully via SendGrid to: %v", to)
 	return nil
 }
 
@@ -218,112 +241,135 @@ func (s *EmailService) sendWithAWSSES(
 		Credentials: credentials.NewStaticCredentials(s.AWSAccessKeyID, s.AWSSecretAccessKey, ""),
 	})
 	if err != nil {
-		log.Printf("Failed to create AWS session: %v", err)
-		return err
+		return fmt.Errorf("failed to create AWS session: %v", err)
 	}
 
 	// Create SES service client
 	svc := ses.New(sess)
 
-	// Create raw message
-	rawMessage, err := s.createSESRawMessage(to, cc, subject, body, attachment)
-	if err != nil {
-		return err
+	// Prepare destinations
+	var destinations []*string
+	for _, recipient := range to {
+		destinations = append(destinations, aws.String(recipient))
+	}
+	for _, recipient := range cc {
+		destinations = append(destinations, aws.String(recipient))
 	}
 
-	// Send the raw email
-	input := &ses.SendRawEmailInput{
-		RawMessage: &ses.RawMessage{
-			Data: []byte(rawMessage),
+	// If we have an attachment, we need to send raw email
+	if attachment != nil {
+		return s.sendRawEmailWithSES(svc, to, cc, subject, body, attachment)
+	}
+
+	// Simple email without attachment
+	input := &ses.SendEmailInput{
+		Destination: &ses.Destination{
+			ToAddresses: aws.StringSlice(to),
+			CcAddresses: aws.StringSlice(cc),
 		},
+		Message: &ses.Message{
+			Body: &ses.Body{
+				Html: &ses.Content{
+					Charset: aws.String("UTF-8"),
+					Data:    aws.String(body),
+				},
+			},
+			Subject: &ses.Content{
+				Charset: aws.String("UTF-8"),
+				Data:    aws.String(subject),
+			},
+		},
+		Source: aws.String(s.FromEmail),
 	}
 
-	result, err := svc.SendRawEmail(input)
+	_, err = svc.SendEmail(input)
 	if err != nil {
-		log.Printf("AWS SES error: %v", err)
-		return err
+		return fmt.Errorf("failed to send email via AWS SES: %v", err)
 	}
 
-	log.Printf("Email sent successfully via AWS SES, MessageID: %s", *result.MessageId)
+	log.Printf("Email sent successfully via AWS SES to: %v", to)
 	return nil
 }
 
-func (s *EmailService) createSESRawMessage(
+func (s *EmailService) sendRawEmailWithSES(svc *ses.SES, to, cc []string, subject, body string, attachment *EmailAttachment) error {
+	// Build raw email message
+	var buffer bytes.Buffer
+
+	// Headers
+	buffer.WriteString(fmt.Sprintf("From: %s <%s>\r\n", s.FromName, s.FromEmail))
+	buffer.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(to, ", ")))
+	if len(cc) > 0 {
+		buffer.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(cc, ", ")))
+	}
+	buffer.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	buffer.WriteString("MIME-Version: 1.0\r\n")
+	buffer.WriteString("Content-Type: multipart/mixed; boundary=\"boundary123\"\r\n")
+	buffer.WriteString("\r\n")
+
+	// Email body
+	buffer.WriteString("--boundary123\r\n")
+	buffer.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+	buffer.WriteString("\r\n")
+	buffer.WriteString(body)
+	buffer.WriteString("\r\n")
+
+	// Attachment
+	buffer.WriteString("--boundary123\r\n")
+	buffer.WriteString(fmt.Sprintf("Content-Type: %s\r\n", attachment.ContentType))
+	buffer.WriteString("Content-Transfer-Encoding: base64\r\n")
+	buffer.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", attachment.FileName))
+	buffer.WriteString("\r\n")
+	encoded := base64.StdEncoding.EncodeToString(attachment.Data)
+	buffer.WriteString(encoded)
+	buffer.WriteString("\r\n")
+	buffer.WriteString("--boundary123--\r\n")
+
+	// Prepare destinations
+	var destinations []*string
+	for _, recipient := range to {
+		destinations = append(destinations, aws.String(recipient))
+	}
+	for _, recipient := range cc {
+		destinations = append(destinations, aws.String(recipient))
+	}
+
+	input := &ses.SendRawEmailInput{
+		RawMessage: &ses.RawMessage{
+			Data: buffer.Bytes(),
+		},
+		Destinations: destinations,
+		Source:       aws.String(s.FromEmail),
+	}
+
+	_, err := svc.SendRawEmail(input)
+	if err != nil {
+		return fmt.Errorf("failed to send raw email via AWS SES: %v", err)
+	}
+
+	return nil
+}
+
+func (s *EmailService) sendWithOCIEmail(
 	to []string,
 	cc []string,
 	subject string,
 	body string,
 	attachment *EmailAttachment,
-) (string, error) {
-	// Generate a boundary for the multipart message
-	boundary := fmt.Sprintf("Multipart_Boundary_%d", time.Now().UnixNano())
-
-	var message strings.Builder
-
-	// Email headers
-	message.WriteString(fmt.Sprintf("From: %s <%s>\r\n", s.FromName, s.FromEmail))
-	message.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(to, ", ")))
-	if len(cc) > 0 {
-		message.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(cc, ", ")))
-	}
-	message.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
-	message.WriteString("MIME-Version: 1.0\r\n")
-	message.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=%s\r\n\r\n", boundary))
-
-	// Text part
-	message.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-	message.WriteString("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
-	message.WriteString(body)
-	message.WriteString("\r\n\r\n")
-
-	// Attachment part (if provided)
-	if attachment != nil {
-		message.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-		message.WriteString(fmt.Sprintf("Content-Type: %s\r\n", attachment.ContentType))
-		message.WriteString("Content-Transfer-Encoding: base64\r\n")
-		message.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=%s\r\n\r\n", attachment.FileName))
-
-		// Encode the attachment data as base64
-		encodedData := base64.StdEncoding.EncodeToString(attachment.Data)
-
-		// Write the encoded data in lines of 76 characters
-		for i := 0; i < len(encodedData); i += 76 {
-			end := i + 76
-			if end > len(encodedData) {
-				end = len(encodedData)
-			}
-			message.WriteString(encodedData[i:end] + "\r\n")
-		}
-		message.WriteString("\r\n")
-	}
-
-	// Close the MIME boundary
-	message.WriteString(fmt.Sprintf("--%s--", boundary))
-
-	return message.String(), nil
-}
-
-func (s *EmailService) sendWithOCIEmail(to, cc []string, subject, body string, attachment *EmailAttachment) error {
-	ctx := context.Background()
-
+) error {
 	client, err := emaildataplane.NewEmailDPClientWithConfigurationProvider(s.OCIConfigProvider)
 	if err != nil {
-		log.Printf("Error creating OCI Email client: %v", err)
-		return err
+		return fmt.Errorf("failed to create OCI email client: %v", err)
 	}
 
-	toAddresses := make([]emaildataplane.EmailAddress, len(to))
-	for i, addr := range to {
-		toAddresses[i] = emaildataplane.EmailAddress{
-			Email: common.String(addr),
-		}
+	// Prepare recipients
+	var toAddresses []emaildataplane.EmailAddress
+	for _, recipient := range to {
+		toAddresses = append(toAddresses, emaildataplane.EmailAddress{Email: &recipient})
 	}
 
-	ccAddresses := make([]emaildataplane.EmailAddress, len(cc))
-	for i, addr := range cc {
-		ccAddresses[i] = emaildataplane.EmailAddress{
-			Email: common.String(addr),
-		}
+	var ccAddresses []emaildataplane.EmailAddress
+	for _, recipient := range cc {
+		ccAddresses = append(ccAddresses, emaildataplane.EmailAddress{Email: &recipient})
 	}
 
 	recipients := &emaildataplane.Recipients{
@@ -334,124 +380,154 @@ func (s *EmailService) sendWithOCIEmail(to, cc []string, subject, body string, a
 	}
 
 	sender := &emaildataplane.Sender{
-		CompartmentId: common.String(s.OCICompartmentID),
+		CompartmentId: &s.OCICompartmentID,
 		SenderAddress: &emaildataplane.EmailAddress{
-			Email: common.String(s.FromEmail),
-			Name:  common.String(s.FromName),
+			Email: &s.FromEmail,
+			Name:  &s.FromName,
 		},
 	}
 
-	headerFields := make(map[string]string)
-
 	submitDetails := emaildataplane.SubmitEmailDetails{
-		Subject:      common.String(subject),
-		BodyText:     common.String(body),
-		Recipients:   recipients,
-		Sender:       sender,
-		HeaderFields: headerFields,
+		Subject:    &subject,
+		BodyHtml:   &body,
+		Recipients: recipients,
+		Sender:     sender,
 	}
 
-	boundary := "unique-boundary-123"
-	mimeBody := bytes.Buffer{}
-
-	// Set MIME headers
-	headerFields = map[string]string{
-		"Content-Type": fmt.Sprintf("multipart/mixed; boundary=%d", time.Now().UnixNano()),
-		"MIME-Version": "1.0",
+	// Add attachment handling here if needed - OCI email attachments are complex
+	// For now, we'll send without attachments or implement raw email
+	if attachment != nil {
+		log.Printf("Warning: OCI Email attachments not fully implemented in this version")
 	}
 
-	mimeBody.WriteString(fmt.Sprintf("\r\n--%s\r\n", boundary))
-	mimeBody.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
-	mimeBody.WriteString("<html><body>Your email content</body></html>\r\n")
-
-	// Add attachment
-	mimeBody.WriteString(fmt.Sprintf("\r\n--%s\r\n", boundary))
-	mimeBody.WriteString("Content-Type: application/pdf\r\n")
-	mimeBody.WriteString("Content-Transfer-Encoding: base64\r\n")
-	mimeBody.WriteString("Content-Disposition: attachment; filename=\"document.pdf\"\r\n\r\n")
-	mimeBody.WriteString(base64.StdEncoding.EncodeToString(attachment.Data))
-	mimeBody.WriteString(fmt.Sprintf("\r\n--%s--", boundary))
-
-	submitDetails.BodyHtml = common.String(mimeBody.String())
-	submitDetails.HeaderFields = headerFields
-
-	submitReq := emaildataplane.SubmitEmailRequest{
+	submitRequest := emaildataplane.SubmitEmailRequest{
 		SubmitEmailDetails: submitDetails,
 	}
 
-	resp, err := client.SubmitEmail(ctx, submitReq)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err = client.SubmitEmail(ctx, submitRequest)
 	if err != nil {
-		log.Printf("Error submitting email: %v", err)
-		return err
+		return fmt.Errorf("failed to send email via OCI: %v", err)
 	}
 
-	log.Printf("Email sent successfully via OCI Email service with ID: %s", *resp.MessageId)
+	log.Printf("Email sent successfully via OCI Email to: %v", to)
 	return nil
 }
 
-func (s *EmailService) sendWithMailJet(to, cc []string, subject, body string, attachment *EmailAttachment) error {
-	mailjetClient := mailjet.NewMailjetClient(s.MailJetAPIKey, s.MailJetSecretKey)
+func (s *EmailService) sendWithMailJet(
+	to []string,
+	cc []string,
+	subject string,
+	body string,
+	attachment *EmailAttachment,
+) error {
+	mj := mailjet.NewMailjetClient(s.MailJetAPIKey, s.MailJetSecretKey)
 
-	var toRecipients mailjet.RecipientsV31
+	// Prepare TO recipients
+	var recipientsTo mailjet.RecipientsV31
 	for _, recipient := range to {
-		toRecipients = append(toRecipients, mailjet.RecipientV31{
+		recipientsTo = append(recipientsTo, mailjet.RecipientV31{
 			Email: recipient,
 		})
 	}
 
-	var ccRecipients mailjet.RecipientsV31
+	// Prepare CC recipients
+	var recipientsCc mailjet.RecipientsV31
 	for _, recipient := range cc {
-		ccRecipients = append(ccRecipients, mailjet.RecipientV31{
+		recipientsCc = append(recipientsCc, mailjet.RecipientV31{
 			Email: recipient,
 		})
 	}
 
-	messages := mailjet.MessagesV31{
-		Info: []mailjet.InfoMessagesV31{
-			{
-				From: &mailjet.RecipientV31{
-					Email: s.FromEmail,
-					Name:  s.FromName,
-				},
-				To:       &toRecipients,
-				Cc:       &ccRecipients,
-				Subject:  subject,
-				TextPart: body,
-			},
+	// Create message
+	message := mailjet.InfoMessagesV31{
+		From: &mailjet.RecipientV31{
+			Email: s.FromEmail,
+			Name:  s.FromName,
 		},
+		To:       &recipientsTo,
+		Cc:       &recipientsCc,
+		Subject:  subject,
+		HTMLPart: body,
 	}
 
+	// Add attachment if provided
 	if attachment != nil {
-		attachmentContent := base64.StdEncoding.EncodeToString(attachment.Data)
-		attachments := mailjet.AttachmentsV31{
+		encoded := base64.StdEncoding.EncodeToString(attachment.Data)
+		message.Attachments = &mailjet.AttachmentsV31{
 			{
 				ContentType:   attachment.ContentType,
 				Filename:      attachment.FileName,
-				Base64Content: attachmentContent,
+				Base64Content: encoded,
 			},
 		}
-		messages.Info[0].Attachments = &attachments
 	}
 
-	response, err := mailjetClient.SendMailV31(&messages)
+	messages := mailjet.MessagesV31{Info: []mailjet.InfoMessagesV31{message}}
+
+	_, err := mj.SendMailV31(&messages)
 	if err != nil {
-		log.Printf("Error sending email via MailJet: %v", err)
-		return err
+		return fmt.Errorf("failed to send email via MailJet: %v", err)
 	}
 
-	if response.ResultsV31 != nil && len(response.ResultsV31) > 0 {
-		for _, result := range response.ResultsV31 {
-			if result.Status != "success" {
-				log.Printf("Email sent via MailJet failed with status: %s", result.Status)
-				return fmt.Errorf("failed to send email via MailJet, status: %s", result.Status)
-			} else {
-				log.Printf("Email sent successfully via MailJet with Status: %s", result.Status)
-			}
-		}
-	}
+	log.Printf("Email sent successfully via MailJet to: %v", to)
 	return nil
 }
 
+func (s *EmailService) sendWithResend(
+	to []string,
+	cc []string,
+	subject string,
+	body string,
+	attachment *EmailAttachment,
+) error {
+	client := resend.NewClient(s.ResendAPIKey)
+
+	// Prepare email parameters
+	params := &resend.SendEmailRequest{
+		From:    fmt.Sprintf("%s <%s>", s.FromName, s.FromEmail),
+		To:      to,
+		Subject: subject,
+		Html:    body,
+	}
+
+	// Add CC recipients if any
+	if len(cc) > 0 {
+		params.Cc = cc
+	}
+
+	// Add attachment if provided
+	if attachment != nil {
+		params.Attachments = []*resend.Attachment{
+			{
+				Content:  attachment.Data,
+				Filename: attachment.FileName,
+			},
+		}
+	}
+
+	sent, err := client.Emails.Send(params)
+	if err != nil {
+		return fmt.Errorf("failed to send email via Resend: %v", err)
+	}
+
+	log.Printf("Email sent successfully via Resend (ID: %s) to: %v", sent.Id, to)
+	return nil
+}
+
+// IsConfigured returns true if the email service is properly configured
 func (s *EmailService) IsConfigured() bool {
 	return s.IsInitialized
+}
+
+// SendEmail sends a simple email without attachment
+func (s *EmailService) SendEmail(subject, body string, to, cc []string) error {
+	return s.SendEmailWithAttachment(subject, body, to, cc, nil)
+}
+
+// SendEmailToDefaults sends email to default recipients
+func (s *EmailService) SendEmailToDefaults(subject, body string, attachment *EmailAttachment) error {
+	return s.SendEmailWithAttachment(subject, body, s.DefaultTos, nil, attachment)
 }
