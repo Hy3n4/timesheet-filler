@@ -1,6 +1,65 @@
 apiVersion: v1
 entries:
   timesheet-filler:
+  - annotations:
+      artifacthub.io/category: productivity
+      artifacthub.io/changes: |
+        - Added comprehensive Resend.com email provider support
+        - Improved email configuration with all major providers
+        - Enhanced Helm chart with better templating and validation
+        - Added ServiceMonitor support for Prometheus monitoring
+        - Improved secret management for email credentials
+        - Added HorizontalPodAutoscaler support
+        - Enhanced documentation and examples
+      artifacthub.io/images: |
+        - name: timesheet-filler
+          image: ghcr.io/hy3n4/timesheet-filler:latest
+      artifacthub.io/kubeVersion: '>=1.19.0-0'
+      artifacthub.io/license: MIT
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://github.com/your-username/timesheet-filler/blob/main/README.md
+        - name: Resend Migration Guide
+          url: https://github.com/your-username/timesheet-filler/blob/main/examples/RESEND_MIGRATION.md
+      artifacthub.io/prerelease: "false"
+      artifacthub.io/screenshots: |
+        - title: Upload Interface
+          url: https://raw.githubusercontent.com/your-username/timesheet-filler/main/screenshot.png
+      timesheet-filler.io/email-providers: sendgrid,ses,oci,mailjet,resend
+      timesheet-filler.io/features: excel-processing,email-notifications,multi-language,metrics
+    apiVersion: v2
+    appVersion: v0.0.7
+    created: "2025-11-22T21:05:30.051374331Z"
+    description: A web application for processing Excel timesheet files with multi-provider
+      email support including Resend, SendGrid, AWS SES, OCI Email, and MailJet
+    digest: 2a938af26960bf5ad6e09bd346a550c8b2544b9e5fdaaf1146aabbca69ba21ec
+    home: https://github.com/your-username/timesheet-filler
+    icon: https://raw.githubusercontent.com/your-username/timesheet-filler/main/templates/favicon/favicon.svg
+    keywords:
+    - timesheet
+    - excel
+    - spreadsheet
+    - processing
+    - email
+    - resend
+    - sendgrid
+    - aws-ses
+    - mailjet
+    - oci-email
+    - web-application
+    - golang
+    - business-tools
+    kubeVersion: '>=1.19.0-0'
+    maintainers:
+    - email: maintainer@example.com
+      name: Timesheet Filler Team
+    name: timesheet-filler
+    sources:
+    - https://github.com/your-username/timesheet-filler
+    type: application
+    urls:
+    - https://github.com/Hy3n4/timesheet-filler/releases/download/chart-v0.0.7/timesheet-filler-v0.0.7.tgz
+    version: v0.0.7
   - apiVersion: v2
     appVersion: 0.0.5
     created: "2025-03-19T14:01:54.904480328Z"
@@ -51,4 +110,4 @@ entries:
     urls:
     - https://github.com/Hy3n4/timesheet-filler/releases/download/v0.0.1/timesheet-filler-0.0.1.tgz
     version: 0.0.1
-generated: "2025-03-20T07:25:31.8461404Z"
+generated: "2025-11-22T21:05:30.049684547Z"
