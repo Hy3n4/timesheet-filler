@@ -3,7 +3,8 @@ version: "3"
 vars:
   BINARY_NAME: timesheet-filler
   CMD_PATH: ./cmd/server
-  DOCKER_IMAGE: ghcr.io/hy3n4/timesheet-filler
+  IMAGE: ghcr.io/hy3n4/timesheet-filler
+  CONTAINER_NAME: timesheet-filler-dev
 
 tasks:
   build:
@@ -21,7 +22,38 @@ tasks:
     cmds:
       - golangci-lint run ./...
 
-  docker:
-    desc: Build Docker image
+  podman:build:
+    desc: Build container image with Podman
     cmds:
-      - docker build -t {{.DOCKER_IMAGE}}:latest .
+      - podman build -t {{.IMAGE}}:latest .
+
+  podman:push:
+    desc: Push container image to registry
+    cmds:
+      - podman push {{.IMAGE}}:latest
+
+  dev-up:
+    desc: Start the development environment
+    cmds:
+      - podman build -t {{.IMAGE}}:dev .
+      - |
+        podman run -d \
+          --name {{.CONTAINER_NAME}} \
+          --replace \
+          -p 8080:8080 \
+          -p 9180:9180 \
+          -e EMAIL_ENABLED=false \
+          {{.IMAGE}}:dev
+      - echo "Dev environment started. API available at http://localhost:8080"
+
+  dev-down:
+    desc: Stop the development environment
+    cmds:
+      - podman stop {{.CONTAINER_NAME}} || true
+      - podman rm {{.CONTAINER_NAME}} || true
+      - echo "Dev environment stopped"
+
+  dev-logs:
+    desc: Show logs from the development container
+    cmds:
+      - podman logs -f {{.CONTAINER_NAME}}
