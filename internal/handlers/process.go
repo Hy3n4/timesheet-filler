@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
@@ -120,7 +121,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 	firstname, lastname := utils.SplitName(name)
 	cleanFirstname := utils.RemoveDiacritics(firstname)
 	cleanLastname := utils.RemoveDiacritics(lastname)
-	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d2024_%s_%s.xlsx", month, cleanFirstname, cleanLastname)
+	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d%d_%s_%s.xlsx", month, time.Now().Year(), cleanFirstname, cleanLastname)
 	filename = utils.SanitizeFilename(filename)
 
 	// Write the Excel file to a buffer
