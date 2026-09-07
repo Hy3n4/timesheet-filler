@@ -6,13 +6,10 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
-
-	"github.com/xuri/excelize/v2"
 )
 
 type UploadHandler struct {
@@ -112,32 +109,21 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 	fileData := buf.Bytes()
 
 	// Parse the Excel file to get the list of names and months
-	names, monthsInt, err := h.excelService.ParseExcelForNamesAndMonths(fileData)
+	requestedSheet := h.excelService.DefaultSourceSheet()
+	names, monthsInt, err := h.excelService.ParseExcelForNamesAndMonths(fileData, requestedSheet)
 	if err != nil {
-		// Check if it's a sheet not found error by looking at the error message
-		if strings.Contains(err.Error(), "sheet") && strings.Contains(err.Error(), "does not exist") {
-			// Get available sheets directly from the Excel file
-			srcFile, fileErr := excelize.OpenReader(bytes.NewReader(fileData))
-			if fileErr != nil {
-				log.Printf("Error opening Excel file: %v", fileErr)
-				tmplData := models.BaseTemplateData{
-					Error: "Failed to process Excel file: " + fileErr.Error(),
-				}
-				h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
-				return
-			}
-			defer srcFile.Close()
+		var availableSheets []string
+		if snfErr, ok := services.IsSheetNotFoundError(err); ok {
+			availableSheets = snfErr.AvailableSheets
+		} else if suErr, ok := services.IsSheetUnusableError(err); ok {
+			availableSheets = suErr.AvailableSheets
+		}
 
-			// Get all available sheets
-			availableSheets := srcFile.GetSheetList()
+		if len(availableSheets) > 0 {
+			log.Printf("Sheet %q unusable (%v), offering %d alternatives", requestedSheet, err, len(availableSheets))
 
-			// Store the file data for later use
 			fileToken := h.fileStore.StoreFileData(fileData, nil, nil, "")
 
-			// Extract the sheet name from the error message
-			requestedSheet := h.excelService.GetSourceSheet() // Add this getter method
-
-			// Render the sheet selection template
 			tmplData := models.SelectSheetTemplateData{
 				BaseTemplateData: models.BaseTemplateData{},
 				FileToken:        fileToken,
@@ -148,7 +134,6 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		// Handle other errors as before
 		log.Printf("Error parsing Excel file: %v", err)
 		tmplData := models.BaseTemplateData{
 			Error: "Internal Server Error: Unable to parse Excel file: " + err.Error(),
@@ -170,7 +155,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	// Store the fileData along with names and months using a unique token
-	fileToken := h.fileStore.StoreFileData(fileData, names, months, "")
+	fileToken := h.fileStore.StoreFileData(fileData, names, months, requestedSheet)
 
 	// Prepare data for the template
 	tmplData := models.SelectTemplateData{

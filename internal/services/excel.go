@@ -28,6 +28,20 @@ func IsSheetNotFoundError(err error) (SheetNotFoundError, bool) {
 	return snfErr, ok
 }
 
+type SheetUnusableError struct {
+	SheetName       string
+	AvailableSheets []string
+}
+
+func (e SheetUnusableError) Error() string {
+	return fmt.Sprintf("Sheet '%s' contains no rows with a readable date", e.SheetName)
+}
+
+func IsSheetUnusableError(err error) (SheetUnusableError, bool) {
+	suErr, ok := err.(SheetUnusableError)
+	return suErr, ok
+}
+
 type ExcelService struct {
 	templatePath     string
 	sourceSheet      string
@@ -75,8 +89,13 @@ func VerifySheetExists(fileData []byte, sheetName string) (bool, []string, error
 	return false, sheets, nil
 }
 
-func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte) ([]string, []int, error) {
-	if es.sourceSheet == "" {
+// ParseExcelForNamesAndMonths reads sheetName from the uploaded file. An empty
+// sheetName falls back to the sheet configured at construction time.
+func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte, sheetName string) ([]string, []int, error) {
+	if sheetName == "" {
+		sheetName = es.sourceSheet
+	}
+	if sheetName == "" {
 		return nil, nil, fmt.Errorf("source sheet name is empty")
 	}
 
@@ -86,19 +105,21 @@ func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte) ([]string, 
 	}
 	defer srcFile.Close()
 
-	// Check if the source sheet exists
-	if _, err := srcFile.GetSheetIndex(es.sourceSheet); err != nil {
-		sheets := srcFile.GetSheetList()
+	// GetSheetIndex reports -1 with a nil error when the sheet is absent.
+	if idx, err := srcFile.GetSheetIndex(sheetName); err != nil || idx == -1 {
 		return nil, nil, SheetNotFoundError{
-			SheetName:       es.sourceSheet,
-			AvailableSheets: sheets,
+			SheetName:       sheetName,
+			AvailableSheets: srcFile.GetSheetList(),
 		}
 	}
 
 	// Get all rows from the source sheet
-	rows, err := srcFile.GetRows(es.sourceSheet)
+	rows, err := srcFile.GetRows(sheetName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get rows from sheet %s: %w", es.sourceSheet, err)
+		return nil, nil, fmt.Errorf("failed to get rows from sheet %s: %w", sheetName, err)
+	}
+	if len(rows) == 0 {
+		return nil, nil, fmt.Errorf("sheet %q is empty", sheetName)
 	}
 
 	nameSet := make(map[string]struct{})
@@ -131,6 +152,13 @@ func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte) ([]string, 
 		months = append(months, month)
 	}
 
+	if len(months) == 0 {
+		return nil, nil, SheetUnusableError{
+			SheetName:       sheetName,
+			AvailableSheets: srcFile.GetSheetList(),
+		}
+	}
+
 	// Sort the slices
 	sort.Strings(names)
 	sort.Ints(months)
@@ -138,17 +166,36 @@ func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte) ([]string, 
 	return names, months, nil
 }
 
-func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int) ([]models.TableRow, error) {
+// ExtractTableData reads sheetName from the uploaded file. An empty sheetName
+// falls back to the sheet configured at construction time.
+func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int, sheetName string) ([]models.TableRow, error) {
+	if sheetName == "" {
+		sheetName = es.sourceSheet
+	}
+	if sheetName == "" {
+		return nil, fmt.Errorf("source sheet name is empty")
+	}
+
 	srcFile, err := excelize.OpenReader(bytes.NewReader(fileData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
 	}
 	defer srcFile.Close()
 
-	// Assume data is in a specific sheet and columns
-	rows, err := srcFile.GetRows(es.sourceSheet)
+	// GetSheetIndex reports -1 with a nil error when the sheet is absent.
+	if idx, err := srcFile.GetSheetIndex(sheetName); err != nil || idx == -1 {
+		return nil, SheetNotFoundError{
+			SheetName:       sheetName,
+			AvailableSheets: srcFile.GetSheetList(),
+		}
+	}
+
+	rows, err := srcFile.GetRows(sheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get rows: %w", err)
+		return nil, fmt.Errorf("failed to get rows from sheet %s: %w", sheetName, err)
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("sheet %q is empty", sheetName)
 	}
 
 	var tableData []models.TableRow
@@ -288,16 +335,6 @@ func (es *ExcelService) ProcessExcelFile(filterName string, tableData []models.T
 	return templateFile, nil
 }
 
-func (es *ExcelService) SetSourceSheet(sheetName string) {
-	if sheetName == "" {
-		log.Println("No sheet name provided")
-		return
-	}
-
-	log.Printf("Setting source sheet to: '%s'", sheetName)
-	es.sourceSheet = sheetName
-}
-
-func (es *ExcelService) GetSourceSheet() string {
+func (es *ExcelService) DefaultSourceSheet() string {
 	return es.sourceSheet
 }

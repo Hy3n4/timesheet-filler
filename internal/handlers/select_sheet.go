@@ -56,9 +56,7 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	h.excelService.SetSourceSheet(selectedSheet)
-
-	names, monthsInt, err := h.excelService.ParseExcelForNamesAndMonths(fileData.Data)
+	names, monthsInt, err := h.excelService.ParseExcelForNamesAndMonths(fileData.Data, selectedSheet)
 	if err != nil {
 		log.Printf("Error parsing Excel after sheet selection: %v", err)
 

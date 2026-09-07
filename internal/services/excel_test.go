@@ -14,7 +14,7 @@ func TestParseExcelForNamesAndMonths(t *testing.T) {
 	excelService := NewExcelService("test_template.xlsx", "docházka realizačního týmu")
 
 	// Test parsing
-	names, months, err := excelService.ParseExcelForNamesAndMonths(testFileData)
+	names, months, err := excelService.ParseExcelForNamesAndMonths(testFileData, "")
 
 	// Check for errors
 	if err != nil {
@@ -54,7 +54,7 @@ func TestExtractTableData(t *testing.T) {
 	excelService := NewExcelService("test_template.xlsx", "docházka realizačního týmu")
 
 	// Test extraction for a specific user and month
-	tableData, err := excelService.ExtractTableData(testFileData, "Test User", 1)
+	tableData, err := excelService.ExtractTableData(testFileData, "Test User", 1, "")
 
 	// Check for errors
 	if err != nil {
@@ -84,7 +84,7 @@ func TestExtractTableData(t *testing.T) {
 	}
 
 	// Check non-existent user
-	noData, err := excelService.ExtractTableData(testFileData, "Non Existent", 1)
+	noData, err := excelService.ExtractTableData(testFileData, "Non Existent", 1, "")
 	if err != nil {
 		t.Fatalf("Expected no error for non-existent user, got %v", err)
 	}

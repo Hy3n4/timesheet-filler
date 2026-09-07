@@ -86,7 +86,7 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract data from the uploaded Excel file
-	tableData, err := h.excelService.ExtractTableData(fileDataStruct.Data, name, month)
+	tableData, err := h.excelService.ExtractTableData(fileDataStruct.Data, name, month, fileDataStruct.SheetName)
 	if err != nil {
 		tmplData := models.SelectTemplateData{
 			BaseTemplateData: models.BaseTemplateData{
