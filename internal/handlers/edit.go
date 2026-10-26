@@ -3,6 +3,8 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/metrics"
@@ -44,11 +46,11 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Retrieve form values
-	name := r.FormValue("name")
-	monthStr := r.FormValue("month")
+	name := manualOr(r, "name")
+	period := manualOr(r, "period")
 	fileToken := r.FormValue("fileToken")
 
-	if name == "" || monthStr == "" || fileToken == "" {
+	if name == "" || period == "" || fileToken == "" {
 		tmplData := models.BaseTemplateData{
 			Error: "All fields are required.",
 		}
@@ -69,33 +71,32 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse the month string to integer
-	month, err := utils.ParseMonth(monthStr)
+	year, month, err := utils.ParsePeriod(period)
 	if err != nil {
 		tmplData := models.SelectTemplateData{
 			BaseTemplateData: models.BaseTemplateData{
 				Error: "Invalid month selected.",
 			},
-			FileToken:    fileToken,
-			Names:        fileDataStruct.Names,
-			Months:       fileDataStruct.Months,
-			DefaultMonth: monthStr,
+			FileToken:     fileToken,
+			Names:         fileDataStruct.Names,
+			Months:        fileDataStruct.Months,
+			DefaultPeriod: period,
 		}
 		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
 	// Extract data from the uploaded Excel file
-	tableData, err := h.excelService.ExtractTableData(fileDataStruct.Data, name, month, fileDataStruct.SheetName)
+	tableData, err := h.excelService.ExtractTableData(fileDataStruct.Data, name, year, month, fileDataStruct.SheetName)
 	if err != nil {
 		tmplData := models.SelectTemplateData{
 			BaseTemplateData: models.BaseTemplateData{
 				Error: fmt.Sprintf("Failed to extract data: %v", err),
 			},
-			FileToken:    fileToken,
-			Names:        fileDataStruct.Names,
-			Months:       fileDataStruct.Months,
-			DefaultMonth: monthStr,
+			FileToken:     fileToken,
+			Names:         fileDataStruct.Names,
+			Months:        fileDataStruct.Months,
+			DefaultPeriod: period,
 		}
 		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusInternalServerError, lang)
 		return
@@ -116,9 +117,21 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 	tmplData := models.EditTemplateData{
 		FileToken: fileToken,
 		Name:      name,
-		Month:     monthStr,
+		Month:     strconv.Itoa(month),
+		Year:      strconv.Itoa(year),
 		TableData: tableData,
 	}
 
 	h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK, lang)
+}
+
+// manualChoice is the select option that switches a field to its "<field>_manual" input.
+const manualChoice = "__manual__"
+
+func manualOr(r *http.Request, field string) string {
+	value := r.FormValue(field)
+	if value == manualChoice {
+		value = r.FormValue(field + "_manual")
+	}
+	return strings.TrimSpace(value)
 }

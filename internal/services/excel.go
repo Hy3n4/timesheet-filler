@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/xuri/excelize/v2"
@@ -41,6 +42,11 @@ func IsSheetUnusableError(err error) (SheetUnusableError, bool) {
 	suErr, ok := err.(SheetUnusableError)
 	return suErr, ok
 }
+
+// PossibleEventHeader names the optional trailing column that marks a row as
+// a possible event (the cell holds the reason, e.g. "nominace nepotvrzena").
+// The classic EOS export has no such column, so its rows are never optional.
+const PossibleEventHeader = "Možná událost"
 
 type ExcelService struct {
 	templatePath     string
@@ -168,7 +174,7 @@ func (es *ExcelService) ParseExcelForNamesAndMonths(fileData []byte, sheetName s
 
 // ExtractTableData reads sheetName from the uploaded file. An empty sheetName
 // falls back to the sheet configured at construction time.
-func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int, sheetName string) ([]models.TableRow, error) {
+func (es *ExcelService) ExtractTableData(fileData []byte, name string, year, month int, sheetName string) ([]models.TableRow, error) {
 	if sheetName == "" {
 		sheetName = es.sourceSheet
 	}
@@ -198,6 +204,14 @@ func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int
 		return nil, fmt.Errorf("sheet %q is empty", sheetName)
 	}
 
+	idxPossible := -1
+	for i, header := range rows[0] {
+		if strings.TrimSpace(header) == PossibleEventHeader {
+			idxPossible = i
+			break
+		}
+	}
+
 	var tableData []models.TableRow
 	for _, row := range rows[1:] { // Skip header row
 		member := utils.SafeGetCellValue(row, es.idxClen)
@@ -210,7 +224,7 @@ func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int
 		if err != nil {
 			continue
 		}
-		if int(startDate.Month()) != month {
+		if startDate.Year() != year || int(startDate.Month()) != month {
 			continue
 		}
 
@@ -220,10 +234,14 @@ func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int
 			continue
 		}
 
-		attended := utils.SafeGetCellValue(row, es.idxAttended)
-
-		if attended != "ano" {
-			if int(startDate.Month()) == month {
+		// A non-attended row is offered as optional only when it names a
+		// possible-event reason; otherwise it is skipped as before.
+		reason := ""
+		if utils.SafeGetCellValue(row, es.idxAttended) != "ano" {
+			if idxPossible >= 0 {
+				reason = strings.TrimSpace(utils.SafeGetCellValue(row, idxPossible))
+			}
+			if reason == "" {
 				continue
 			}
 		}
@@ -238,6 +256,8 @@ func (es *ExcelService) ExtractTableData(fileData []byte, name string, month int
 			StartTime: timeStartEntry,
 			EndTime:   timeEndEntry,
 			Note:      note,
+			Optional:  reason != "",
+			Reason:    reason,
 		})
 	}
 

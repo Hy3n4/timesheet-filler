@@ -7,6 +7,9 @@
     <input type="hidden" name="fileToken" value="{{.Data.FileToken}}">
     <input type="hidden" name="name" value="{{.Data.Name}}">
     <input type="hidden" name="month" value="{{.Data.Month}}">
+    <input type="hidden" name="year" value="{{.Data.Year}}">
+
+    <div id="possible-hint" class="alert alert-secondary d-none">{{t "possible_events_hint"}}</div>
 
     <div class="table-responsive">
         <table class="table" id="data-table">
@@ -29,6 +32,26 @@
             </thead>
             <tbody id="sortable-tbody">
                 {{range .Data.TableData}}
+                {{if .Optional}}
+                <!-- Possible event: disabled inputs are not submitted until the user adds the row. -->
+                <tr draggable="true" class="optional-row">
+                    <td class="drag-handle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical" viewBox="0 0 16 16">
+                            <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                        </svg>
+                    </td>
+                    <td><input type="date" name="date[]" class="form-control" value="{{.Date}}" required disabled></td>
+                    <td><input type="time" name="start_time[]" class="form-control" value="{{.StartTime}}" required disabled></td>
+                    <td><input type="time" name="end_time[]" class="form-control" value="{{.EndTime}}" required disabled></td>
+                    <td>
+                        <input type="text" name="note[]" class="form-control" value="{{.Note}}" disabled>
+                        <span class="badge bg-secondary possible-reason">{{.Reason}}</span>
+                    </td>
+                    <td class="text-center"><button type="button" class="btn btn-success btn-sm add-optional" title="{{t "add_possible_event"}}" aria-label="{{t "add_possible_event"}}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+                      <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+                    </svg></button></td>
+                </tr>
+                {{else}}
                 <tr draggable="true">
                     <td class="drag-handle">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical" viewBox="0 0 16 16">
@@ -43,6 +66,7 @@
                       <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
                     </svg></button></td>
                 </tr>
+                {{end}}
                 {{end}}
             </tbody>
         </table>
@@ -75,7 +99,16 @@
 table td {
     vertical-align: middle !important;
 }
-.btn-danger.btn-sm {
+.optional-row td {
+    opacity: 0.55;
+}
+.optional-row td:last-child {
+    opacity: 1;
+}
+.possible-reason {
+    font-weight: normal;
+}
+.btn-danger.btn-sm, .btn-success.btn-sm {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -132,10 +165,24 @@ document.addEventListener('DOMContentLoaded', function() {
         tbody.appendChild(newRow);
     });
 
-    // Remove row
+    if (document.querySelector('.optional-row')) {
+        document.getElementById('possible-hint').classList.remove('d-none');
+    }
+
+    // Remove row, or add a possible event to the report
     document.getElementById('data-table').addEventListener('click', function(e) {
         if (e.target.closest('.remove-row')) {
             e.target.closest('tr').remove();
+            return;
+        }
+        const addButton = e.target.closest('.add-optional');
+        if (addButton) {
+            const row = addButton.closest('tr');
+            row.classList.remove('optional-row');
+            row.querySelectorAll('input').forEach(input => { input.disabled = false; });
+            addButton.outerHTML = `<button type="button" class="btn btn-danger btn-sm remove-row"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
+              <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
+            </svg></button>`;
         }
     });
 

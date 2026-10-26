@@ -49,6 +49,25 @@ func ParseMonth(monthStr string) (int, error) {
 	return 0, fmt.Errorf("invalid month: %s", monthStr)
 }
 
+// ParsePeriod parses a "YYYY-MM" value as sent by an <input type="month">.
+func ParsePeriod(period string) (year, month int, err error) {
+	t, err := time.Parse("2006-01", strings.TrimSpace(period))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid period: %s", period)
+	}
+	return t.Year(), int(t.Month()), nil
+}
+
+// PeriodForMonth returns "YYYY-MM" for the latest occurrence of month that
+// is not after now, so December picked in January means last year.
+func PeriodForMonth(month int, now time.Time) string {
+	year := now.Year()
+	if month > int(now.Month()) {
+		year--
+	}
+	return fmt.Sprintf("%04d-%02d", year, month)
+}
+
 func SplitName(fullName string) (firstname, lastname string) {
 	parts := strings.Fields(fullName)
 	if len(parts) == 0 {

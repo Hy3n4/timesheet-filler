@@ -2,6 +2,7 @@ package utils
 
 import (
 	"testing"
+	"time"
 )
 
 func TestGenerateFileToken(t *testing.T) {
@@ -297,5 +298,27 @@ func TestSafeGetCellValue(t *testing.T) {
 					tt.row, tt.index, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParsePeriod(t *testing.T) {
+	year, month, err := ParsePeriod("2026-10")
+	if err != nil || year != 2026 || month != 10 {
+		t.Errorf("ParsePeriod(\"2026-10\") = %d, %d, %v", year, month, err)
+	}
+	for _, bad := range []string{"", "10", "2026-13", "2026/10"} {
+		if _, _, err := ParsePeriod(bad); err == nil {
+			t.Errorf("ParsePeriod(%q) expected an error", bad)
+		}
+	}
+}
+
+func TestPeriodForMonth(t *testing.T) {
+	now := time.Date(2026, time.January, 5, 12, 0, 0, 0, time.UTC)
+	tests := map[int]string{1: "2026-01", 12: "2025-12"}
+	for month, want := range tests {
+		if got := PeriodForMonth(month, now); got != want {
+			t.Errorf("PeriodForMonth(%d) = %q, want %q", month, got, want)
+		}
 	}
 }

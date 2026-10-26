@@ -18,10 +18,10 @@ type SelectSheetTemplateData struct {
 
 type SelectTemplateData struct {
 	BaseTemplateData
-	FileToken    string
-	Names        []string
-	Months       []string
-	DefaultMonth string
+	FileToken     string
+	Names         []string
+	Months        []string
+	DefaultPeriod string
 }
 
 type EditTemplateData struct {
@@ -29,6 +29,7 @@ type EditTemplateData struct {
 	FileToken string
 	Name      string
 	Month     string
+	Year      string
 	TableData []TableRow
 }
 
@@ -50,6 +51,10 @@ type TableRow struct {
 	StartTime string
 	EndTime   string
 	Note      string
+	// Optional marks a possible event the user has to add explicitly;
+	// Reason says why it is only possible.
+	Optional bool
+	Reason   string
 }
 
 type FileData struct {

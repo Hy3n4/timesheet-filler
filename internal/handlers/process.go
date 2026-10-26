@@ -79,6 +79,12 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Forms rendered before the year was added post none; assume this year.
+	year, err := strconv.Atoi(r.FormValue("year"))
+	if err != nil {
+		year = time.Now().Year()
+	}
+
 	// Retrieve table data from form
 	dates := r.Form["date[]"]
 	startTimes := r.Form["start_time[]"]
@@ -93,6 +99,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 			FileToken: fileToken,
 			Name:      name,
 			Month:     monthStr,
+			Year:      strconv.Itoa(year),
 		}
 		h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK, lang)
 		return
@@ -121,7 +128,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 	firstname, lastname := utils.SplitName(name)
 	cleanFirstname := utils.RemoveDiacritics(firstname)
 	cleanLastname := utils.RemoveDiacritics(lastname)
-	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d%d_%s_%s.xlsx", month, time.Now().Year(), cleanFirstname, cleanLastname)
+	filename := fmt.Sprintf("Gorily_vykaz-prace_%02d%d_%s_%s.xlsx", month, year, cleanFirstname, cleanLastname)
 	filename = utils.SanitizeFilename(filename)
 
 	// Write the Excel file to a buffer

@@ -5,22 +5,46 @@
 
 <form action="/edit" method="post">
     <input type="hidden" name="fileToken" value="{{.Data.FileToken}}">
-    <div class="mb-3 text-start input-group">
-        <span class="input-group-text">{{t "select_name"}}</span>
-        <select id="name" name="name" required class="form-select">
-            {{range .Data.Names}}
-            <option value="{{.}}">{{.}}</option>
-            {{end}}
-        </select>
+    <div class="mb-3 text-start">
+        <div class="input-group">
+            <span class="input-group-text">{{t "select_name"}}</span>
+            <select id="name" name="name" required class="form-select manual-toggle" data-manual="name-manual">
+                {{range .Data.Names}}
+                <option value="{{.}}">{{.}}</option>
+                {{end}}
+                <option value="__manual__"{{if not .Data.Names}} selected{{end}}>{{t "add_custom_name"}}</option>
+            </select>
+        </div>
+        <input type="text" id="name-manual" name="name_manual" class="form-control mt-2 d-none" autocomplete="off" placeholder="{{t "select_name_placeholder"}}">
     </div>
-    <div class="mb-3 text-start input-group">
-        <span class="input-group-text">{{t "select_month"}}</span>
-        <select id="month" name="month" required class="form-select">
-            {{range $index, $month := .Data.Months}}
-            <option value="{{.}}" {{if eq $.Data.DefaultMonth .}}selected{{end}}>{{.}}</option>
-            {{end}}
-        </select>
+    <div class="mb-3 text-start">
+        <div class="input-group">
+            <span class="input-group-text">{{t "select_month"}}</span>
+            <select id="period" name="period" required class="form-select manual-toggle" data-manual="period-manual">
+                {{range .Data.Months}}
+                <option value="{{.}}" {{if eq $.Data.DefaultPeriod .}}selected{{end}}>{{if eq (slice . 5 6) "0"}}{{slice . 6}}{{else}}{{slice . 5}}{{end}}</option>
+                {{end}}
+                <option value="__manual__"{{if not .Data.Months}} selected{{end}}>{{t "add_custom_month"}}</option>
+            </select>
+        </div>
+        <input type="month" id="period-manual" name="period_manual" class="form-control mt-2 d-none" value="{{.Data.DefaultPeriod}}">
     </div>
     <button type="submit" class="btn btn-custom btn-lg w-100">{{t "btn_next"}}</button>
 </form>
+{{end}}
+
+{{define "scripts"}}
+<script>
+document.querySelectorAll('.manual-toggle').forEach(function(select) {
+    const input = document.getElementById(select.dataset.manual);
+    function sync() {
+        const manual = select.value === '__manual__';
+        input.classList.toggle('d-none', !manual);
+        input.required = manual;
+        if (manual && document.activeElement === select) input.focus();
+    }
+    select.addEventListener('change', sync);
+    sync();
+});
+</script>
 {{end}}

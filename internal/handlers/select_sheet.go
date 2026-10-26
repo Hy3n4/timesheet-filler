@@ -3,10 +3,12 @@ package handlers
 import (
 	"log"
 	"net/http"
-	"strconv"
+	"sort"
+	"time"
 	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
+	"timesheet-filler/internal/utils"
 )
 
 type SelectSheethandler struct {
@@ -67,24 +69,25 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	var months []string
+	now := time.Now()
+	var periods []string
 	for _, m := range monthsInt {
-		months = append(months, strconv.Itoa(m))
+		periods = append(periods, utils.PeriodForMonth(m, now))
+	}
+	sort.Strings(periods)
+
+	var defaultPeriod string
+	if len(periods) > 0 {
+		defaultPeriod = periods[len(periods)-1]
 	}
 
-	var defaultMonth string
-	if len(monthsInt) > 0 {
-		maxMonth := monthsInt[len(monthsInt)-1]
-		defaultMonth = strconv.Itoa(maxMonth)
-	}
-
-	fileToken = h.fileStore.StoreFileData(fileData.Data, names, months, selectedSheet)
+	fileToken = h.fileStore.StoreFileData(fileData.Data, names, periods, selectedSheet)
 
 	tmplData := models.SelectTemplateData{
-		FileToken:    fileToken,
-		Names:        names,
-		Months:       months,
-		DefaultMonth: defaultMonth,
+		FileToken:     fileToken,
+		Names:         names,
+		Months:        periods,
+		DefaultPeriod: defaultPeriod,
 	}
 
 	h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusOK, lang)

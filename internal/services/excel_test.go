@@ -1,8 +1,12 @@
 package services
 
 import (
+	"reflect"
 	"testing"
 
+	"github.com/xuri/excelize/v2"
+
+	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/testutil"
 )
 
@@ -54,7 +58,7 @@ func TestExtractTableData(t *testing.T) {
 	excelService := NewExcelService("test_template.xlsx", "docházka realizačního týmu")
 
 	// Test extraction for a specific user and month
-	tableData, err := excelService.ExtractTableData(testFileData, "Test User", 1, "")
+	tableData, err := excelService.ExtractTableData(testFileData, "Test User", 2023, 1, "")
 
 	// Check for errors
 	if err != nil {
@@ -84,11 +88,94 @@ func TestExtractTableData(t *testing.T) {
 	}
 
 	// Check non-existent user
-	noData, err := excelService.ExtractTableData(testFileData, "Non Existent", 1, "")
+	noData, err := excelService.ExtractTableData(testFileData, "Non Existent", 2023, 1, "")
 	if err != nil {
 		t.Fatalf("Expected no error for non-existent user, got %v", err)
 	}
 	if len(noData) != 0 {
 		t.Errorf("Expected 0 rows for non-existent user, got %d", len(noData))
+	}
+
+	otherYear, err := excelService.ExtractTableData(testFileData, "Test User", 2024, 1, "")
+	if err != nil {
+		t.Fatalf("Expected no error for another year, got %v", err)
+	}
+	if len(otherYear) != 0 {
+		t.Errorf("Expected 0 rows for another year, got %d", len(otherYear))
+	}
+}
+
+func possibleEventsFile(t *testing.T, withPossibleColumn bool) []byte {
+	t.Helper()
+	const sheet = "docházka správců týmu"
+	f := excelize.NewFile()
+	defer f.Close()
+	if err := f.SetSheetName("Sheet1", sheet); err != nil {
+		t.Fatal(err)
+	}
+	header := []any{"ID", "Člen", nil, nil, nil, nil, "Účast", nil, "Typ události", "Název události", nil, "Začátek", "Konec"}
+	if withPossibleColumn {
+		for len(header) < 24 {
+			header = append(header, nil)
+		}
+		header = append(header, PossibleEventHeader)
+	}
+	rows := [][]any{
+		header,
+		{"1", "Coach", nil, nil, nil, nil, "ano", nil, "Trénink", "Training", nil, "2026-10-15 16:00", "2026-10-15 17:30"},
+		{"2", "Coach", nil, nil, nil, nil, "ne", nil, "Trénink", "Skipped training", nil, "2026-10-16 16:00", "2026-10-16 17:30"},
+		{"3", "Coach", nil, nil, nil, nil, "ne", nil, "Turnaj", "Tournament", nil, "2026-10-17 08:00", "2026-10-17 15:00"},
+	}
+	if withPossibleColumn {
+		row := rows[3]
+		for len(row) < 24 {
+			row = append(row, nil)
+		}
+		rows[3] = append(row, "nominace nepotvrzena")
+	}
+	for i, row := range rows {
+		cell, err := excelize.CoordinatesToCellName(1, i+1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.SetSheetRow(sheet, cell, &row); err != nil {
+			t.Fatal(err)
+		}
+	}
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func TestExtractTableDataPossibleEvents(t *testing.T) {
+	service := NewExcelService("test_template.xlsx", "docházka správců týmu")
+
+	rows, err := service.ExtractTableData(possibleEventsFile(t, true), "Coach", 2026, 10, "")
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	want := []models.TableRow{
+		{Date: "2026-10-15", StartTime: "16:00", EndTime: "17:30", Note: "Training"},
+		{Date: "2026-10-17", StartTime: "08:00", EndTime: "15:00", Note: "Tournament", Optional: true, Reason: "nominace nepotvrzena"},
+	}
+	if !reflect.DeepEqual(rows, want) {
+		t.Errorf("Expected %+v, got %+v", want, rows)
+	}
+}
+
+func TestExtractTableDataClassicExportHasNoOptionalRows(t *testing.T) {
+	service := NewExcelService("test_template.xlsx", "docházka správců týmu")
+
+	rows, err := service.ExtractTableData(possibleEventsFile(t, false), "Coach", 2026, 10, "")
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	want := []models.TableRow{
+		{Date: "2026-10-15", StartTime: "16:00", EndTime: "17:30", Note: "Training"},
+	}
+	if !reflect.DeepEqual(rows, want) {
+		t.Errorf("Expected %+v, got %+v", want, rows)
 	}
 }

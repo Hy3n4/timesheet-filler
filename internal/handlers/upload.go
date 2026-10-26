@@ -5,11 +5,13 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
+	"sort"
+	"time"
 
 	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
+	"timesheet-filler/internal/utils"
 )
 
 type UploadHandler struct {
@@ -142,27 +144,27 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var months []string
+	now := time.Now()
+	var periods []string
 	for _, m := range monthsInt {
-		months = append(months, strconv.Itoa(m))
+		periods = append(periods, utils.PeriodForMonth(m, now))
 	}
+	sort.Strings(periods)
 
-	// Determine the highest month
-	var defaultMonth string
-	if len(monthsInt) > 0 {
-		maxMonth := monthsInt[len(monthsInt)-1]
-		defaultMonth = strconv.Itoa(maxMonth)
+	var defaultPeriod string
+	if len(periods) > 0 {
+		defaultPeriod = periods[len(periods)-1]
 	}
 
 	// Store the fileData along with names and months using a unique token
-	fileToken := h.fileStore.StoreFileData(fileData, names, months, requestedSheet)
+	fileToken := h.fileStore.StoreFileData(fileData, names, periods, requestedSheet)
 
 	// Prepare data for the template
 	tmplData := models.SelectTemplateData{
-		FileToken:    fileToken,
-		Names:        names,
-		Months:       months,
-		DefaultMonth: defaultMonth,
+		FileToken:     fileToken,
+		Names:         names,
+		Months:        periods,
+		DefaultPeriod: defaultPeriod,
 	}
 
 	// Serve the selection form
