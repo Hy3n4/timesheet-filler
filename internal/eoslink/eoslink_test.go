@@ -32,7 +32,7 @@ func jwt(mid int64, exp time.Time) string {
 	return enc([]byte(`{}`)) + "." + enc(payload) + ".s"
 }
 
-// fakeEOS hands out refresh tokens "r1", "r2", ... and access tokens that
+// fakeEOS hands out refresh tokens "fake-refresh-token-1", ... and access tokens that
 // live accessTTL. Revoking makes every refresh and list call answer 401.
 type fakeEOS struct {
 	mu        sync.Mutex
@@ -47,7 +47,7 @@ type fakeEOS struct {
 func (f *fakeEOS) pair(w http.ResponseWriter, nested bool) {
 	f.next++
 	access := jwt(329, time.Now().Add(f.accessTTL))
-	refresh := fmt.Sprintf("r%d", f.next)
+	refresh := fmt.Sprintf("fake-refresh-token-%d", f.next)
 	w.WriteHeader(http.StatusCreated)
 	if nested {
 		fmt.Fprintf(w, `{"access_token":{"token":%q,"session":{"id":900}},"refresh_token":{"token":%q,"session":{"id":%d}}}`,
@@ -151,7 +151,7 @@ func TestLinkStoresSealedTokensAndReusesTheAccessToken(t *testing.T) {
 	var refreshEnc string
 	require.NoError(t, s.pool.QueryRow(ctx, "SELECT refresh_enc FROM eos_links WHERE user_id = $1", user).Scan(&refreshEnc))
 	assert.True(t, strings.HasPrefix(refreshEnc, "v1:"))
-	assert.NotContains(t, refreshEnc, "r1")
+	assert.NotContains(t, refreshEnc, "fake-refresh-token")
 
 	token, member, err := s.AccessToken(ctx, user)
 	require.NoError(t, err)
