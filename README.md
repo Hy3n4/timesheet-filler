@@ -76,6 +76,25 @@ timesheet of the coach name an admin linked to their account.
 
 Without Google, create the first admin with `timesheet-filler -invite-admin <email>`.
 
+#### EOS account link
+
+Under **EOS** a user links their EOS account once with their EOS email and
+password (and the EOS two-factor code if EOS asks). The password is sent to EOS
+for that one login and never stored. The app keeps the long-lived EOS refresh
+token sealed with `SECRET_KEYS`, bound to the user, and decrypts it only to
+call EOS for that user. **Load my attendance from EOS** on the upload page then
+builds the month's rows directly (same rules as the `eos-club attendance-export`
+CLI, possible events included) without an export file.
+
+The app calls only `auth/sessions`, `auth/otp`, `auth/tokens`,
+`DELETE auth/sessions/{id}` (unlinking), `management/event-attendances`,
+`management/events` and `event-types`. When EOS rejects the refresh token the
+link asks the user to sign in to EOS again.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| EOS_BASE_URL | EOS API base URL | https://eos.gorilyplzen.cz/api/v2/ |
+
 #### Email Configuration
 
 | Variable | Description | Default |
@@ -207,7 +226,7 @@ Health check endpoints:
 ```bash
 go test ./...
 # The auth tests also need a throwaway PostgreSQL database; they are skipped otherwise.
-TEST_DATABASE_URL=postgres://tsf:tsf@localhost:55432/tsf_test go test ./internal/auth/
+TEST_DATABASE_URL=postgres://tsf:tsf@localhost:55432/tsf_test go test -p 1 ./...
 ```
 
 ### Building the Application

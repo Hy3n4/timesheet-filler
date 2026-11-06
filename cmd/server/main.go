@@ -17,6 +17,8 @@ import (
 	"timesheet-filler/internal/auth"
 	"timesheet-filler/internal/config"
 	"timesheet-filler/internal/db"
+	"timesheet-filler/internal/eos"
+	"timesheet-filler/internal/eoslink"
 	"timesheet-filler/internal/handlers"
 	"timesheet-filler/internal/i18n"
 	"timesheet-filler/internal/metrics"
@@ -208,7 +210,17 @@ func main() {
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("sendEmailHandler")))
 
-	authHandler := handlers.NewAuthHandler(authService, templateService)
+	eosLinks := eoslink.NewService(pool, keys, eos.NewClient(cfg.EOSBaseURL))
+	authHandler := handlers.NewAuthHandler(authService, templateService, eosLinks)
+	eosHandler := handlers.NewEOSHandler(eosLinks, templateService, fileStore)
+	userRoute := func(pattern string, h http.HandlerFunc) {
+		baseMux.Handle(pattern, applyMiddlewares(auth.RequireUser(h), loggingMiddleware.LogRequest))
+	}
+	userRoute("GET /account/eos", eosHandler.Page)
+	userRoute("POST /account/eos/link", eosHandler.Link)
+	userRoute("POST /account/eos/otp", eosHandler.OTP)
+	userRoute("POST /account/eos/unlink", eosHandler.Unlink)
+	userRoute("POST /eos/load", eosHandler.Load)
 	authRoute := func(pattern string, h http.HandlerFunc) {
 		baseMux.Handle(pattern, applyMiddlewares(h, loggingMiddleware.LogRequest))
 	}

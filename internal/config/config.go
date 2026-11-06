@@ -40,6 +40,7 @@ type Config struct {
 	CookieSecure       bool
 	SessionTTL         time.Duration
 	SessionIdle        time.Duration
+	EOSBaseURL         string
 }
 
 func New() *Config {
@@ -76,6 +77,7 @@ func New() *Config {
 		CookieSecure:       getEnvAsBool("COOKIE_SECURE", true),
 		SessionTTL:         getEnvAsDuration("SESSION_TTL", 7*24*time.Hour),
 		SessionIdle:        getEnvAsDuration("SESSION_IDLE_TIMEOUT", 24*time.Hour),
+		EOSBaseURL:         getEnv("EOS_BASE_URL", "https://eos.gorilyplzen.cz/api/v2/"),
 	}
 }
 

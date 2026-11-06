@@ -9,6 +9,7 @@ import (
 
 	"timesheet-filler/internal/auth"
 	"timesheet-filler/internal/contextkeys"
+	"timesheet-filler/internal/eoslink"
 	"timesheet-filler/internal/models"
 	"timesheet-filler/internal/services"
 )
@@ -16,10 +17,11 @@ import (
 type AuthHandler struct {
 	auth      *auth.Service
 	templates *services.TemplateService
+	eosLinks  *eoslink.Service
 }
 
-func NewAuthHandler(a *auth.Service, t *services.TemplateService) *AuthHandler {
-	return &AuthHandler{auth: a, templates: t}
+func NewAuthHandler(a *auth.Service, t *services.TemplateService, links *eoslink.Service) *AuthHandler {
+	return &AuthHandler{auth: a, templates: t, eosLinks: links}
 }
 
 type LoginPage struct {

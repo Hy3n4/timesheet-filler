@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"html"
+	"log"
 	"net/http"
 	"strconv"
 
 	"timesheet-filler/internal/auth"
+	"timesheet-filler/internal/eoslink"
 	"timesheet-filler/internal/models"
 )
 
@@ -133,6 +136,12 @@ func (h *AuthHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	case "reset_mfa":
 		err = h.auth.ResetMFA(r, id)
 	case "delete":
+		// Deleting the user cascades to the EOS link, so end its EOS session first.
+		if id != auth.UserFrom(r.Context()).ID {
+			if _, uerr := h.eosLinks.Unlink(r.Context(), id, auth.ClientIP(r)); uerr != nil && !errors.Is(uerr, eoslink.ErrNotLinked) {
+				log.Printf("admin: ending EOS session of user %d: %v", id, uerr)
+			}
+		}
 		err = h.auth.DeleteUser(r, id)
 	default:
 		err = auth.ErrNotFound

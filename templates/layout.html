@@ -123,6 +123,7 @@
                     <span class="text-muted">{{.Viewer.Email}}</span>
                     {{if .Viewer.IsAdmin}}<a href="/admin" class="btn btn-sm btn-outline-secondary">{{t "nav_admin"}}</a>{{end}}
                     <a href="/" class="btn btn-sm btn-outline-secondary">{{t "nav_timesheet"}}</a>
+                    <a href="/account/eos" class="btn btn-sm btn-outline-secondary">EOS</a>
                     <form action="/logout" method="post" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger">{{t "nav_logout"}}</button>
                     </form>
