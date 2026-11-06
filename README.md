@@ -256,5 +256,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgements
 
 - [Excelize](https://github.com/qax-os/excelize) - For Excel file processing
-- [Bootstrap](https://getbootstrap.com/) - For front-end styling
+- [Tabler](https://tabler.io/) - UI kit (Bootstrap 5 based), icons and light/dark mode
 - [SortableJS](https://sortablejs.github.io/Sortable/) - For drag-and-drop reordering

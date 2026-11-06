@@ -1,7 +1,7 @@
 {{define "title"}}{{t "twofa_title"}}{{end}}
+{{define "width"}}col-12 col-md-8 col-lg-6 col-xl-5{{end}}
 
 {{define "content"}}
-<h1>{{t "twofa_title"}}</h1>
 
 <div class="mx-auto text-start" style="max-width: 420px;">
     {{if .Data.Info}}<div class="alert alert-info">{{.Data.Info}}</div>{{end}}
@@ -11,7 +11,7 @@
             <input type="text" id="code" name="code" required autofocus autocomplete="one-time-code" inputmode="text" class="form-control form-control-lg text-center">
             <div class="form-text">{{t "twofa_code_help"}}</div>
         </div>
-        <button type="submit" class="btn btn-custom btn-lg w-100">{{t "twofa_submit"}}</button>
+        <button type="submit" class="btn btn-primary btn-lg w-100">{{t "twofa_submit"}}</button>
     </form>
     {{if .Data.EmailEnabled}}
     <form action="/login/2fa/email" method="post" class="mt-3">
@@ -19,7 +19,7 @@
     </form>
     {{end}}
     <form action="/logout" method="post" class="mt-2">
-        <button type="submit" class="btn btn-link p-0 text-muted">{{t "twofa_cancel"}}</button>
+        <button type="submit" class="btn btn-link p-0 text-secondary">{{t "twofa_cancel"}}</button>
     </form>
 </div>
 {{end}}

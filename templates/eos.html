@@ -1,7 +1,7 @@
 {{define "title"}}{{t "eos_title"}}{{end}}
+{{define "width"}}col-12 col-md-8 col-lg-6 col-xl-5{{end}}
 
 {{define "content"}}
-<h1>{{t "eos_title"}}</h1>
 
 <div class="mx-auto text-start" style="max-width: 480px;">
     {{if .Data.Info}}<div class="alert alert-info">{{.Data.Info}}</div>{{end}}
@@ -9,12 +9,12 @@
     {{if .Data.Link}}
     <div id="eos-status" class="border rounded p-3 mb-3">
         {{if eq .Data.Link.Status "active"}}
-        <div><span class="badge bg-success">{{t "eos_status_active"}}</span></div>
+        <div><span class="badge bg-success-lt">{{t "eos_status_active"}}</span></div>
         {{else}}
-        <div><span class="badge bg-warning text-dark">{{t "eos_status_reauth"}}</span></div>
+        <div><span class="badge bg-warning-lt">{{t "eos_status_reauth"}}</span></div>
         <p class="small mt-2 mb-0">{{t "eos_reauth_help"}}</p>
         {{end}}
-        <div class="small text-muted mt-2">
+        <div class="small text-secondary mt-2">
             {{t "eos_member_id"}}: {{.Data.Link.MemberID}} ·
             {{t "eos_linked_at"}}: {{.Data.Link.LinkedAt.Format "2006-01-02 15:04"}}
         </div>
@@ -28,7 +28,7 @@
     <form action="/account/eos/otp" method="post" class="mb-3">
         <label for="otp" class="form-label">{{t "eos_otp"}}</label>
         <input type="text" id="otp" name="otp" required autofocus autocomplete="one-time-code" inputmode="numeric" class="form-control form-control-lg text-center mb-2">
-        <button type="submit" class="btn btn-custom w-100">{{t "twofa_submit"}}</button>
+        <button type="submit" class="btn btn-primary w-100">{{t "twofa_submit"}}</button>
     </form>
     {{else if or (not .Data.Link) (ne .Data.Link.Status "active")}}
     <p>{{t "eos_intro"}}</p>
@@ -42,7 +42,7 @@
             <input type="password" id="eos-password" name="password" required class="form-control" autocomplete="off">
             <div class="form-text">{{t "eos_password_help"}}</div>
         </div>
-        <button type="submit" class="btn btn-custom btn-lg w-100">{{t "eos_link"}}</button>
+        <button type="submit" class="btn btn-primary btn-lg w-100">{{t "eos_link"}}</button>
     </form>
     {{end}}
 

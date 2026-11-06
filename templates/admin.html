@@ -1,7 +1,7 @@
 {{define "title"}}{{t "admin_title"}}{{end}}
+{{define "width"}}col-12{{end}}
 
 {{define "content"}}
-<h1>{{t "admin_title"}}</h1>
 
 <div class="text-start">
     {{if .Data.Info}}<div class="alert alert-success">{{.Data.Info}}</div>{{end}}
@@ -32,10 +32,10 @@
             </select>
         </div>
         <div class="col-md-2">
-            <button type="submit" class="btn btn-custom w-100">{{t "admin_invite_submit"}}</button>
+            <button type="submit" class="btn btn-primary w-100">{{t "admin_invite_submit"}}</button>
         </div>
     </form>
-    {{if not .Data.EmailEnabled}}<p class="small text-muted mt-1">{{t "admin_email_disabled"}}</p>{{end}}
+    {{if not .Data.EmailEnabled}}<p class="small text-secondary mt-1">{{t "admin_email_disabled"}}</p>{{end}}
 
     {{if .Data.Invites}}
     <h2 class="h4 mt-4">{{t "admin_pending_invites"}}</h2>
@@ -65,9 +65,9 @@
         <tbody>
         {{range .Data.Users}}
         {{$self := eq .ID $.Data.SelfID}}
-        <tr class="{{if .Disabled}}text-muted{{end}}">
-            <td>{{.Email}}{{if .DisplayName}}<div class="small text-muted">{{.DisplayName}}</div>{{end}}{{if .Disabled}} <span class="badge bg-secondary">{{t "admin_disabled"}}</span>{{end}}</td>
-            <td>{{if .HasGoogle}}Google{{else}}{{t "admin_password"}}{{if .HasTOTP}} + 2FA{{else}} <span class="badge bg-warning text-dark">{{t "admin_no_2fa"}}</span>{{end}}{{end}}</td>
+        <tr class="{{if .Disabled}}text-secondary{{end}}">
+            <td>{{.Email}}{{if .DisplayName}}<div class="small text-secondary">{{.DisplayName}}</div>{{end}}{{if .Disabled}} <span class="badge bg-secondary-lt">{{t "admin_disabled"}}</span>{{end}}</td>
+            <td>{{if .HasGoogle}}Google{{else}}{{t "admin_password"}}{{if .HasTOTP}} + 2FA{{else}} <span class="badge bg-warning-lt">{{t "admin_no_2fa"}}</span>{{end}}{{end}}</td>
             <td colspan="2">
                 <form id="user-{{.ID}}" action="/admin/users/{{.ID}}" method="post" class="d-flex gap-2">
                     <input type="text" name="eos_name" value="{{.EosName}}" class="form-control form-control-sm" placeholder="{{t "select_name_placeholder"}}">

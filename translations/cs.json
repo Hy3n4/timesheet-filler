@@ -188,5 +188,13 @@
   "purpose_none": "Ostatní (bez účelu)",
   "purpose_nomination": "Nominace",
   "purpose_application": "Přihlašování (přihlášky, vstupenky)",
-  "purpose_organizing": "Pořádání (výzvy „POŘÁDÁME“)"
+  "purpose_organizing": "Pořádání (výzvy „POŘÁDÁME“)",
+  "nav_menu": "Menu",
+  "nav_theme": "Světlý nebo tmavý režim",
+  "nav_language": "Jazyk",
+  "nav_user_menu": "Účet",
+  "select_sheet_title": "Vyberte list",
+  "sheet_not_found": "Soubor neobsahuje list s názvem",
+  "sheet": "List",
+  "continue": "Pokračovat"
 }

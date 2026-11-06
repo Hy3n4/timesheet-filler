@@ -31,7 +31,36 @@ func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, r *http.Request
 		lang = "en"
 	}
 
-	funcMap := template.FuncMap{
+	funcMap := ts.funcs(lang)
+
+	tmpl, err := template.New("").Funcs(funcMap).ParseFiles(
+		filepath.Join(ts.templateDir, "layout.html"),
+		filepath.Join(ts.templateDir, tmplName),
+	)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return err
+	}
+
+	currentPage := strings.TrimSuffix(tmplName, ".html")
+
+	tmplData := models.TemplateData{
+		Data:        data,
+		CurrentYear: time.Now().Year(),
+		CurrentPage: currentPage,
+		Language:    lang,
+	}
+	if v, ok := r.Context().Value(contextkeys.ViewerKey).(*models.Viewer); ok {
+		tmplData.Viewer = v
+	}
+
+	w.WriteHeader(statusCode)
+	return tmpl.ExecuteTemplate(w, "layout", tmplData)
+}
+
+// funcs are the template functions available to every page.
+func (ts *TemplateService) funcs(lang string) template.FuncMap {
+	return template.FuncMap{
 		"t": func(key string) string {
 			return ts.translator.Translate(key, lang)
 		},
@@ -60,30 +89,6 @@ func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, r *http.Request
 			return int(m)
 		},
 	}
-
-	tmpl, err := template.New("").Funcs(funcMap).ParseFiles(
-		filepath.Join(ts.templateDir, "layout.html"),
-		filepath.Join(ts.templateDir, tmplName),
-	)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return err
-	}
-
-	currentPage := strings.TrimSuffix(tmplName, ".html")
-
-	tmplData := models.TemplateData{
-		Data:        data,
-		CurrentYear: time.Now().Year(),
-		CurrentPage: currentPage,
-		Language:    lang,
-	}
-	if v, ok := r.Context().Value(contextkeys.ViewerKey).(*models.Viewer); ok {
-		tmplData.Viewer = v
-	}
-
-	w.WriteHeader(statusCode)
-	return tmpl.ExecuteTemplate(w, "layout", tmplData)
 }
 
 func (ts *TemplateService) GetTranslator() *i18n.Translator {

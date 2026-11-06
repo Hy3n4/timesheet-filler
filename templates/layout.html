@@ -1,188 +1,157 @@
-{{define "layout"}}
+{{define "layout"}}<!doctype html>
 <html lang="{{.Language}}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{t "app_title"}}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>{{template "title" .}} · {{t "app_title"}}</title>
 
     <link rel="icon" type="image/png" href="/favicon/favicon-48x48.png" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
     <link rel="shortcut icon" href="/favicon/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
     <link rel="manifest" href="/favicon/site.webmanifest" />
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Custom Styles -->
+
+    <!-- Runs first: applies the stored or OS color mode before anything paints. -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.7.3/dist/js/tabler-theme.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.7.3/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.50.0/dist/tabler-icons.min.css">
     <style>
-        body {
-            background-color: #ffffff;
-            color: #000000;
+        :root {
+            --tblr-primary: #e94e1b;
+            --tblr-primary-rgb: 233, 78, 27;
         }
-        .btn-custom {
-            background-color: #e94e1b;
-            color: #ffffff;
-            border: none;
-        }
-        .btn-custom:hover {
-            background-color: #c73e16;
-        }
-        @media (max-width: 768px) {
-            .form-container {
-                padding: 20px;
-            }
-        }
-        .container {
-            margin-top: 50px;
-        }
-        .form-container {
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            width: 100%;
-        }
-        h1 {
-            color: #e94e1b;
-            margin-bottom: 30px;
-            font-size: 2rem; /* Default font size */
-        }
-        @media (max-width: 576px) {
-            h1 {
-                font-size: 1.5rem; /* Smaller font size on mobile */
-            }
-        }
-        .logo {
-            width: 120px;
-            height: auto;
-        }
-
-        .progress-steps {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            max-width: 600px;
-            margin: 60px auto 60px;
-            position: relative;
-        }
-
-        .progress-steps::before {
-            content: '';
-            position: absolute;
-            top: 15px;
-            left: 20px;
-            right: 20px;
-            height: 2px;
-            background: #e0e0e0;
-            z-index: 0;
-        }
-
-        .step {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-            z-index: 1;
-        }
-
-        .step-number {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: #e0e0e0;
-            color: #666;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .step.active .step-number {
-            background: #e94e1b;
-            color: white;
-        }
-
-        .step-label {
-            font-size: 0.8rem;
-            color: #666;
-        }
-
-        .step.active .step-label {
-            color: #e94e1b;
-            font-weight: bold;
+        .navbar-brand-image {
+            height: 2rem;
+            width: auto;
         }
     </style>
     {{block "head" .}}{{end}}
 </head>
 <body>
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-12 col-md-8 col-lg-12">
+<div class="page">
+    <header class="navbar navbar-expand-md d-print-none">
+        <div class="container-xl">
+            {{if .Viewer}}
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu"
+                    aria-controls="navbar-menu" aria-expanded="false" aria-label="{{t "nav_menu"}}">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            {{end}}
+            <a href="/" class="navbar-brand pe-0 pe-md-3">
+                <img src="/favicon/club-logo.png" alt="Gorily Plzeň" class="navbar-brand-image me-2">
+                <span class="d-none d-sm-inline">{{t "app_title"}}</span>
+            </a>
+            <div class="navbar-nav flex-row order-md-last align-items-center">
+                <div class="nav-item">
+                    <button type="button" id="theme-toggle" class="nav-link px-2" title="{{t "nav_theme"}}" aria-label="{{t "nav_theme"}}">
+                        <i class="ti ti-moon fs-2 hide-theme-dark"></i>
+                        <i class="ti ti-sun fs-2 hide-theme-light"></i>
+                    </button>
+                </div>
+                <div class="nav-item dropdown">
+                    <a href="#" class="nav-link px-2" data-bs-toggle="dropdown" aria-label="{{t "nav_language"}}" title="{{t "nav_language"}}">
+                        <i class="ti ti-language fs-2 me-1"></i><span class="text-uppercase small">{{.Language}}</span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a href="?lang=cs" class="dropdown-item{{if eq .Language "cs"}} active{{end}}">Čeština</a>
+                        <a href="?lang=en" class="dropdown-item{{if eq .Language "en"}} active{{end}}">English</a>
+                    </div>
+                </div>
                 {{if .Viewer}}
-                <div class="d-flex justify-content-end align-items-center gap-2 mb-2 small">
-                    <span class="text-muted">{{.Viewer.Email}}</span>
-                    {{if .Viewer.IsAdmin}}<a href="/admin" class="btn btn-sm btn-outline-secondary">{{t "nav_admin"}}</a>{{end}}
-                    <a href="/" class="btn btn-sm btn-outline-secondary">{{t "nav_timesheet"}}</a>
-                    <a href="/account/eos" class="btn btn-sm btn-outline-secondary">EOS</a>
-                    <form action="/logout" method="post" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">{{t "nav_logout"}}</button>
-                    </form>
+                <div class="nav-item dropdown ms-2">
+                    <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="{{t "nav_user_menu"}}" id="user-menu">
+                        <span class="avatar avatar-sm"><i class="ti ti-user"></i></span>
+                        <div class="d-none d-xl-block ps-2">
+                            <div>{{if .Viewer.Name}}{{.Viewer.Name}}{{else}}{{.Viewer.Email}}{{end}}</div>
+                            <div class="mt-1 small text-secondary">{{if .Viewer.IsAdmin}}{{t "role_admin"}}{{else}}{{t "role_member"}}{{end}}</div>
+                        </div>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                        <span class="dropdown-header">{{.Viewer.Email}}</span>
+                        <a href="/account/eos" class="dropdown-item"><i class="ti ti-link me-2"></i>{{t "eos_title"}}</a>
+                        <div class="dropdown-divider"></div>
+                        <form action="/logout" method="post">
+                            <button type="submit" class="dropdown-item text-danger"><i class="ti ti-logout me-2"></i>{{t "nav_logout"}}</button>
+                        </form>
+                    </div>
                 </div>
                 {{end}}
-                <div class="form-container text-center p-4 p-md-5">
-                    <!-- Error Alert -->
-                    {{if .Data}}
-                        {{if .Data.Error}}
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            {{.Data.Error}}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                        {{end}}
+            </div>
+            {{if .Viewer}}
+            <div class="collapse navbar-collapse" id="navbar-menu">
+                <ul class="navbar-nav">
+                    {{$timesheet := or (eq .CurrentPage "upload") (eq .CurrentPage "select") (eq .CurrentPage "select_sheet") (eq .CurrentPage "edit") (eq .CurrentPage "download")}}
+                    <li class="nav-item{{if $timesheet}} active{{end}}">
+                        <a class="nav-link" href="/"><span class="nav-link-icon"><i class="ti ti-file-spreadsheet"></i></span><span class="nav-link-title">{{t "nav_timesheet"}}</span></a>
+                    </li>
+                    <li class="nav-item{{if eq .CurrentPage "eos"}} active{{end}}">
+                        <a class="nav-link" href="/account/eos"><span class="nav-link-icon"><i class="ti ti-link"></i></span><span class="nav-link-title">EOS</span></a>
+                    </li>
+                    {{if .Viewer.IsAdmin}}
+                    <li class="nav-item{{if or (eq .CurrentPage "admin") (eq .CurrentPage "eos_filter")}} active{{end}}">
+                        <a class="nav-link" href="/admin"><span class="nav-link-icon"><i class="ti ti-users"></i></span><span class="nav-link-title">{{t "nav_admin"}}</span></a>
+                    </li>
                     {{end}}
-                    <!-- Logo -->
-                    <img src="https://gorilyplzen.eoscms.cz/webimages/club_logo_filename_20221007_152758.png" alt="Logo" class="logo mb-3 img-fluid">
-                    {{block "content" .}}{{end}}
+                </ul>
+            </div>
+            {{end}}
+        </div>
+    </header>
 
-                    <!-- Progress indicator -->
-                    {{if or (eq .CurrentPage "upload") (eq .CurrentPage "select") (eq .CurrentPage "select_sheet") (eq .CurrentPage "edit") (not .CurrentPage)}}
-                    <div class="progress-steps mb-4">
-                        <div class="step {{if eq .CurrentPage "upload"}}active{{else if not .CurrentPage}}active{{end}}">
-                            <div class="step-number">1</div>
-                            <div class="step-label">{{t "progress_upload"}}</div>
-                        </div>
-                            <div class="step {{if eq .CurrentPage "select"}}active{{end}}">
-                                <div class="step-number">2</div>
-                                <div class="step-label">{{t "progress_select"}}</div>
-                            </div>
-                            <div class="step {{if eq .CurrentPage "edit"}}active{{end}}">
-                                <div class="step-number">3</div>
-                                <div class="step-label">{{t "progress_edit"}}</div>
-                            </div>
-                            <div class="step {{if eq .CurrentPage "download"}}active{{end}}">
-                                <div class="step-number">4</div>
-                                <div class="step-label">{{t "progress_download"}}</div>
-                            </div>
-                        </div>
-                    {{end}}
+    <div class="page-wrapper">
+        <div class="page-header d-print-none">
+            <div class="container-xl">
+                <div class="row justify-content-center">
+                    <div class="{{block "width" .}}col-12 col-lg-9 col-xl-8{{end}}">
+                        <h2 class="page-title">{{template "title" .}}</h2>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Footer -->
-    <footer class="text-center mt-5 mb-3">
-        <p class="mb-0">&copy; {{.CurrentYear}} Hy3n4.net. All rights reserved.</p>
-        <!-- Language selector -->
-        <div class="language-selector">
-            <a href="?lang=en" class="btn btn-sm btn-link lang-btn {{if eq .Language "en"}}active{{end}}">EN</a>
-            |
-            <a href="?lang=cs" class="btn btn-sm btn-link lang-btn {{if eq .Language "cs"}}active{{end}}">CZ</a>
+        <div class="page-body">
+            <div class="container-xl">
+                <div class="row justify-content-center">
+                    <div class="{{template "width" .}}">
+                        {{if or (eq .CurrentPage "upload") (eq .CurrentPage "select") (eq .CurrentPage "select_sheet") (eq .CurrentPage "edit")}}
+                        <div class="steps steps-counter mb-4" id="progress-steps">
+                            <span class="step-item{{if eq .CurrentPage "upload"}} active{{end}}">{{t "progress_upload"}}</span>
+                            <span class="step-item{{if or (eq .CurrentPage "select") (eq .CurrentPage "select_sheet")}} active{{end}}">{{t "progress_select"}}</span>
+                            <span class="step-item{{if eq .CurrentPage "edit"}} active{{end}}">{{t "progress_edit"}}</span>
+                            <span class="step-item">{{t "progress_download"}}</span>
+                        </div>
+                        {{end}}
+                        {{if .Data}}{{if .Data.Error}}
+                        <div class="alert alert-danger alert-dismissible" role="alert">
+                            <div class="d-flex"><i class="ti ti-alert-circle me-2 fs-2"></i><div>{{.Data.Error}}</div></div>
+                            <a class="btn-close" data-bs-dismiss="alert" aria-label="Close"></a>
+                        </div>
+                        {{end}}{{end}}
+                        <div class="card">
+                            <div class="card-body">
+                                {{block "content" .}}{{end}}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-    </footer>
+        <footer class="footer footer-transparent d-print-none">
+            <div class="container-xl text-center text-secondary small">
+                &copy; {{.CurrentYear}} Hy3n4.net
+            </div>
+        </footer>
+    </div>
+</div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    {{block "scripts" .}}{{end}}
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.7.3/dist/js/tabler.min.js"></script>
+<script>
+document.getElementById('theme-toggle').addEventListener('click', function () {
+    const next = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-bs-theme', next);
+    try { localStorage.setItem('tabler-theme', next); } catch (e) {}
+});
+</script>
+{{block "scripts" .}}{{end}}
 </body>
 </html>
 {{end}}

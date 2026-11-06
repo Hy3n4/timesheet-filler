@@ -188,5 +188,13 @@
   "purpose_none": "Other (no purpose)",
   "purpose_nomination": "Nominations",
   "purpose_application": "Applications (sign-ups, tickets)",
-  "purpose_organizing": "Organizing (\"POŘÁDÁME\" volunteer calls)"
+  "purpose_organizing": "Organizing (\"POŘÁDÁME\" volunteer calls)",
+  "nav_menu": "Menu",
+  "nav_theme": "Light or dark mode",
+  "nav_language": "Language",
+  "nav_user_menu": "Account",
+  "select_sheet_title": "Select a sheet",
+  "sheet_not_found": "The file has no sheet named",
+  "sheet": "Sheet",
+  "continue": "Continue"
 }

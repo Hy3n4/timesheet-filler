@@ -1,7 +1,7 @@
 {{define "title"}}{{t "edit_title"}}{{end}}
+{{define "width"}}col-12{{end}}
 
 {{define "content"}}
-<h1>{{t "edit_title"}}</h1>
 
 <form id="data-form" action="/process" method="post">
     <input type="hidden" name="fileToken" value="{{.Data.FileToken}}">
@@ -9,19 +9,17 @@
     <input type="hidden" name="month" value="{{.Data.Month}}">
     <input type="hidden" name="year" value="{{.Data.Year}}">
 
-    <div id="possible-hint" class="alert alert-secondary d-none">{{t "possible_events_hint"}}</div>
+    <div id="possible-hint" class="alert alert-info d-none">{{t "possible_events_hint"}}</div>
 
     <div class="table-responsive">
-        <table class="table" id="data-table">
+        <table class="table table-vcenter" id="data-table">
             <thead>
                 <tr>
                     <th style="width: 30px;"></th> <!-- Column for drag handle -->
                     <th>
                         {{t "date"}}
                         <button type="button" class="btn btn-sm sort-date" title="Sort by date">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-sort-down" viewBox="0 0 16 16">
-                                <path d="M3.5 2.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 11.293V2.5zm3.5 1a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zM7.5 6a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0 3a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3zm0 3a.5.5 0 0 0 0 1h1a.5.5 0 0 0 0-1h-1z"/>
-                            </svg>
+                            <i class="ti ti-sort-ascending"></i>
                         </button>
                     </th>
                     <th>{{t "start_time"}}</th>
@@ -36,35 +34,27 @@
                 <!-- Possible event: disabled inputs are not submitted until the user adds the row. -->
                 <tr draggable="true" class="optional-row">
                     <td class="drag-handle">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical" viewBox="0 0 16 16">
-                            <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-                        </svg>
+                        <i class="ti ti-grip-vertical"></i>
                     </td>
                     <td><input type="date" name="date[]" class="form-control" value="{{.Date}}" required disabled></td>
                     <td><input type="time" name="start_time[]" class="form-control" value="{{.StartTime}}" required disabled></td>
                     <td><input type="time" name="end_time[]" class="form-control" value="{{.EndTime}}" required disabled></td>
                     <td>
                         <input type="text" name="note[]" class="form-control" value="{{.Note}}" disabled>
-                        <span class="badge bg-secondary possible-reason">{{.Reason}}</span>
+                        <span class="badge bg-secondary-lt possible-reason">{{.Reason}}</span>
                     </td>
-                    <td class="text-center"><button type="button" class="btn btn-success btn-sm add-optional" title="{{t "add_possible_event"}}" aria-label="{{t "add_possible_event"}}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
-                      <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
-                    </svg></button></td>
+                    <td class="text-center"><button type="button" class="btn btn-ghost-success btn-icon btn-sm add-optional" title="{{t "add_possible_event"}}" aria-label="{{t "add_possible_event"}}"><i class="ti ti-plus"></i></button></td>
                 </tr>
                 {{else}}
                 <tr draggable="true">
                     <td class="drag-handle">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical" viewBox="0 0 16 16">
-                            <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-                        </svg>
+                        <i class="ti ti-grip-vertical"></i>
                     </td>
                     <td><input type="date" name="date[]" class="form-control" value="{{.Date}}" required></td>
                     <td><input type="time" name="start_time[]" class="form-control" value="{{.StartTime}}" required></td>
                     <td><input type="time" name="end_time[]" class="form-control" value="{{.EndTime}}" required></td>
                     <td><input type="text" name="note[]" class="form-control" value="{{.Note}}"></td>
-                    <td class="text-center"><button type="button" class="btn btn-danger btn-sm remove-row"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
-                      <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
-                    </svg></button></td>
+                    <td class="text-center"><button type="button" class="btn btn-ghost-danger btn-icon btn-sm remove-row"><i class="ti ti-x"></i></button></td>
                 </tr>
                 {{end}}
                 {{end}}
@@ -72,10 +62,10 @@
         </table>
     </div>
 
-    <div class="mb-3">
-        <button type="button" id="add-row" class="btn btn-secondary">{{t "add_row"}}</button>
-        <button type="button" id="sort-table" class="btn btn-secondary">{{t "sort_table"}}</button>
-        <button type="submit" class="btn btn-custom">{{t "generate_report"}}</button>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        <button type="button" id="add-row" class="btn"><i class="ti ti-row-insert-bottom me-1"></i>{{t "add_row"}}</button>
+        <button type="button" id="sort-table" class="btn"><i class="ti ti-sort-ascending me-1"></i>{{t "sort_table"}}</button>
+        <button type="submit" class="btn btn-primary"><i class="ti ti-file-spreadsheet me-1"></i>{{t "generate_report"}}</button>
     </div>
 </form>
 
@@ -83,21 +73,14 @@
 .drag-handle {
     cursor: move;
     user-select: none;
-}
-.dragging {
-    opacity: 0.5;
+    color: var(--tblr-secondary);
 }
 .sort-date {
     border: none;
     background: none;
     padding: 0;
     margin-left: 5px;
-}
-.sort-date:hover {
-    opacity: 0.7;
-}
-table td {
-    vertical-align: middle !important;
+    color: inherit;
 }
 .optional-row td {
     opacity: 0.55;
@@ -105,23 +88,8 @@ table td {
 .optional-row td:last-child {
     opacity: 1;
 }
-.possible-reason {
-    font-weight: normal;
-}
-.btn-danger.btn-sm, .btn-success.btn-sm {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.table input.form-control {
-    padding: 0.375rem 0.75rem;
-}
-.table td, .table th {
-    border: none !important;
-}
-.table td:last-child {
-    text-align: center !important;
-    width: 1%; /* This makes the column as narrow as possible */
+#data-table td:last-child {
+    width: 1%;
     white-space: nowrap;
 }
 </style>
@@ -150,17 +118,13 @@ document.addEventListener('DOMContentLoaded', function() {
         newRow.draggable = true;
         newRow.innerHTML = `
             <td class="drag-handle">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical" viewBox="0 0 16 16">
-                    <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-                </svg>
+                <i class="ti ti-grip-vertical"></i>
             </td>
             <td><input type="date" name="date[]" class="form-control" required></td>
             <td><input type="time" name="start_time[]" class="form-control" required></td>
             <td><input type="time" name="end_time[]" class="form-control" required></td>
             <td><input type="text" name="note[]" class="form-control"></td>
-            <td class="text-center"><button type="button" class="btn btn-danger btn-sm remove-row"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
-              <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
-            </svg></button></td>
+            <td class="text-center"><button type="button" class="btn btn-ghost-danger btn-icon btn-sm remove-row"><i class="ti ti-x"></i></button></td>
         `;
         tbody.appendChild(newRow);
     });
@@ -180,9 +144,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const row = addButton.closest('tr');
             row.classList.remove('optional-row');
             row.querySelectorAll('input').forEach(input => { input.disabled = false; });
-            addButton.outerHTML = `<button type="button" class="btn btn-danger btn-sm remove-row"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
-              <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
-            </svg></button>`;
+            addButton.outerHTML = `<button type="button" class="btn btn-ghost-danger btn-icon btn-sm remove-row"><i class="ti ti-x"></i></button>`;
         }
     });
 

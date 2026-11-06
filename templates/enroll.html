@@ -1,31 +1,31 @@
 {{define "title"}}{{t "enroll_title"}}{{end}}
+{{define "width"}}col-12 col-md-8 col-lg-6 col-xl-5{{end}}
 
 {{define "content"}}
-<h1>{{t "enroll_title"}}</h1>
 
 <div class="mx-auto text-start" style="max-width: 480px;">
     {{if .Data.RecoveryCodes}}
     <div class="alert alert-success">{{t "enroll_done"}}</div>
     <p>{{t "enroll_recovery_help"}}</p>
-    <pre id="recovery-codes" class="border rounded p-3 bg-light text-center fs-5">{{range .Data.RecoveryCodes}}{{.}}
+    <pre id="recovery-codes" class="border rounded p-3 text-center fs-3">{{range .Data.RecoveryCodes}}{{.}}
 {{end}}</pre>
-    <a href="/" class="btn btn-custom btn-lg w-100">{{t "enroll_continue"}}</a>
+    <a href="/" class="btn btn-primary btn-lg w-100">{{t "enroll_continue"}}</a>
     {{else}}
     <p>{{t "enroll_help"}}</p>
     <div class="text-center mb-3">
         <img src="{{.Data.QR}}" alt="QR" width="240" height="240" class="border rounded">
     </div>
-    <p class="small text-muted mb-1">{{t "enroll_manual"}}</p>
+    <p class="small text-secondary mb-1">{{t "enroll_manual"}}</p>
     <p><code id="totp-secret" class="user-select-all">{{.Data.Secret}}</code></p>
     <form action="/account/2fa" method="post">
         <div class="mb-3">
             <label for="code" class="form-label">{{t "enroll_code"}}</label>
             <input type="text" id="code" name="code" required autofocus autocomplete="one-time-code" inputmode="numeric" pattern="[0-9 ]{6,7}" class="form-control form-control-lg text-center">
         </div>
-        <button type="submit" class="btn btn-custom btn-lg w-100">{{t "enroll_submit"}}</button>
+        <button type="submit" class="btn btn-primary btn-lg w-100">{{t "enroll_submit"}}</button>
     </form>
     <form action="/logout" method="post" class="mt-2">
-        <button type="submit" class="btn btn-link p-0 text-muted">{{t "twofa_cancel"}}</button>
+        <button type="submit" class="btn btn-link p-0 text-secondary">{{t "twofa_cancel"}}</button>
     </form>
     {{end}}
 </div>
