@@ -54,7 +54,16 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 		tmplData := models.BaseTemplateData{
 			Error: "All fields are required.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusBadRequest, lang)
+		return
+	}
+
+	name, allowed := coachName(r, name)
+	if !allowed {
+		tmplData := models.BaseTemplateData{
+			Error: h.templateService.GetTranslator().Translate("auth_err_no_eos_name", lang),
+		}
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusForbidden, lang)
 		return
 	}
 
@@ -62,12 +71,12 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 	m.RecordPersonSelection(name)
 
 	// Retrieve the stored file data
-	fileDataStruct, ok := h.fileStore.GetFileData(fileToken)
+	fileDataStruct, ok := h.fileStore.GetFileData(fileToken, ownerID(r))
 	if !ok {
 		tmplData := models.BaseTemplateData{
 			Error: "Invalid session. Please re-upload your file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -78,11 +87,12 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 				Error: "Invalid month selected.",
 			},
 			FileToken:     fileToken,
-			Names:         fileDataStruct.Names,
+			Names:         visibleNames(r, fileDataStruct.Names),
+			CustomName:    isAdmin(r),
 			Months:        fileDataStruct.Months,
 			DefaultPeriod: period,
 		}
-		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "select.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -94,11 +104,12 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 				Error: fmt.Sprintf("Failed to extract data: %v", err),
 			},
 			FileToken:     fileToken,
-			Names:         fileDataStruct.Names,
+			Names:         visibleNames(r, fileDataStruct.Names),
+			CustomName:    isAdmin(r),
 			Months:        fileDataStruct.Months,
 			DefaultPeriod: period,
 		}
-		h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusInternalServerError, lang)
+		h.templateService.RenderTemplate(w, r, "select.html", tmplData, http.StatusInternalServerError, lang)
 		return
 	}
 
@@ -122,7 +133,7 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 		TableData: tableData,
 	}
 
-	h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK, lang)
+	h.templateService.RenderTemplate(w, r, "edit.html", tmplData, http.StatusOK, lang)
 }
 
 // manualChoice is the select option that switches a field to its "<field>_manual" input.

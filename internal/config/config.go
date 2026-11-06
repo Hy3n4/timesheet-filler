@@ -31,6 +31,15 @@ type Config struct {
 	EmailFromName      string
 	EmailFromEmail     string
 	Emailrecipients    []string
+	DatabaseURL        string
+	BaseURL            string
+	SecretKeys         string
+	GoogleClientID     string
+	GoogleClientSecret string
+	AdminEmails        []string
+	CookieSecure       bool
+	SessionTTL         time.Duration
+	SessionIdle        time.Duration
 }
 
 func New() *Config {
@@ -58,6 +67,15 @@ func New() *Config {
 		EmailFromName:      getEnv("EMAIL_FROM_NAME", "Timesheet Filler"),
 		EmailFromEmail:     getEnv("EMAIL_FROM_EMAIL", "gorily.vykaz@hy3n4.com"),
 		Emailrecipients:    getEnvAsStringSlice("EMAIL_RECIPIENTS", []string{"hy3nk4@gmail.com"}),
+		DatabaseURL:        getEnv("DATABASE_URL", ""),
+		BaseURL:            getEnv("BASE_URL", "http://localhost:8080"),
+		SecretKeys:         getEnv("SECRET_KEYS", ""),
+		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+		AdminEmails:        getEnvAsStringSlice("ADMIN_EMAILS", nil),
+		CookieSecure:       getEnvAsBool("COOKIE_SECURE", true),
+		SessionTTL:         getEnvAsDuration("SESSION_TTL", 7*24*time.Hour),
+		SessionIdle:        getEnvAsDuration("SESSION_IDLE_TIMEOUT", 24*time.Hour),
 	}
 }
 

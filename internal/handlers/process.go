@@ -59,11 +59,20 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 	name := r.FormValue("name")
 	monthStr := r.FormValue("month")
 
+	name, allowed := coachName(r, name)
+	if !allowed {
+		tmplData := models.BaseTemplateData{
+			Error: h.templateService.GetTranslator().Translate("auth_err_no_eos_name", lang),
+		}
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusForbidden, lang)
+		return
+	}
+
 	if fileToken == "" || name == "" || monthStr == "" {
 		tmplData := models.BaseTemplateData{
 			Error: "Missing required fields in process handler.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusOK, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusOK, lang)
 		return
 	}
 
@@ -75,7 +84,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 			},
 		}
 		w.WriteHeader(http.StatusBadRequest)
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusNotFound, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusNotFound, lang)
 		return
 	}
 
@@ -101,7 +110,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 			Month:     monthStr,
 			Year:      strconv.Itoa(year),
 		}
-		h.templateService.RenderTemplate(w, "edit.html", tmplData, http.StatusOK, lang)
+		h.templateService.RenderTemplate(w, r, "edit.html", tmplData, http.StatusOK, lang)
 		return
 	}
 
@@ -140,7 +149,7 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Store the file with a new token for download
-	downloadToken := h.fileStore.StoreTempFile(buf.Bytes(), filename)
+	downloadToken := h.fileStore.StoreTempFile(ownerID(r), buf.Bytes(), filename)
 
 	// Render the download template
 	tmplData := models.DownloadTemplateData{
@@ -156,5 +165,5 @@ func (h *ProcessHandler) ProcessHandler(w http.ResponseWriter, r *http.Request) 
 			UserEmail:  "",
 		},
 	}
-	h.templateService.RenderTemplate(w, "download.html", tmplData, http.StatusOK, lang)
+	h.templateService.RenderTemplate(w, r, "download.html", tmplData, http.StatusOK, lang)
 }

@@ -30,7 +30,7 @@ func (h *DownloadHandler) DownloadHandler(w http.ResponseWriter, r *http.Request
 
 	log.Printf("Download request for token: %s", token)
 
-	fileEntry, ok := h.fileStore.GetTempFile(token)
+	fileEntry, ok := h.fileStore.GetTempFile(token, ownerID(r))
 	if !ok {
 		log.Printf("Download error: File not found for token: %s", token)
 		http.Error(w, "File Not Found", http.StatusNotFound)

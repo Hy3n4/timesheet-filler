@@ -21,6 +21,28 @@ app:
   fileTokenExpiry: 24h
   sheetName: "docházka správců týmu"
 
+# Authentication. Accounts are invitation only; the first admins sign in
+# with Google using an address from adminEmails.
+auth:
+  # Public URL of the app without a trailing slash, e.g. https://timesheet.example.com.
+  # Used for invitation links, the Google redirect URI and the CSRF origin check.
+  baseUrl: ""
+  adminEmails: []
+  cookieSecure: true
+  sessionTTL: 168h
+  sessionIdleTimeout: 24h
+  # Existing secret with keys database-url, secret-keys and optionally
+  # google-client-id / google-client-secret. Prefer this over the values below.
+  existingSecret: ""
+  # postgres://user:password@host:5432/timesheet?sslmode=require
+  databaseUrl: ""
+  # AES-256-GCM keyring "v1:<base64 of 32 random bytes>" (openssl rand -base64 32).
+  # Rotate by prepending a new key: "v2:<new>,v1:<old>".
+  secretKeys: ""
+  google:
+    clientId: ""
+    clientSecret: ""
+
 # Email configuration
 email:
   # Enable/disable email functionality

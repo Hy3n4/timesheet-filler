@@ -17,7 +17,8 @@ A web application for processing and generating timesheet reports based on Excel
 
 ### Prerequisites
 
-- Go 1.18 or higher
+- Go 1.26 or higher
+- PostgreSQL (accounts, sessions and invitations)
 - Excel template file (specified in configuration)
 
 ### Running Locally
@@ -28,8 +29,12 @@ git clone https://github.com/yourusername/timesheet-filler.git
 cd timesheet-filler
 ```
 
-2. Run the application:
+2. Start PostgreSQL and run the application (the schema is migrated at startup):
 ```bash
+docker run -d --name tsf-pg -e POSTGRES_USER=tsf -e POSTGRES_PASSWORD=tsf -p 55432:5432 postgres:17-alpine
+export DATABASE_URL=postgres://tsf:tsf@localhost:55432/tsf
+export SECRET_KEYS="v1:$(openssl rand -base64 32)" COOKIE_SECURE=false
+go run cmd/server/main.go -invite-admin you@example.com   # prints the first admin's invitation link
 go run cmd/server/main.go
 ```
 
@@ -50,6 +55,26 @@ The application can be configured using the following environment variables:
 | MAX_UPLOAD_SIZE | Maximum upload file size in bytes | 16777216 (16MB) |
 | FILE_TOKEN_EXPIRY | Expiry time for file tokens | 24h |
 | SHEET_NAME | Excel sheet name to process | docházka správců týmu |
+
+#### Authentication
+
+Accounts are invitation only. Admins invite members from `/admin`; an invite is
+accepted with Google or with a password plus an authenticator app (TOTP, with
+recovery codes and an emailed code as fallback). Members can only build the
+timesheet of the coach name an admin linked to their account.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| DATABASE_URL | PostgreSQL connection URL (required) | |
+| SECRET_KEYS | AES-256-GCM keyring `v1:<base64 of 32 bytes>`; rotate with `v2:<new>,v1:<old>` (required) | |
+| BASE_URL | Public URL without trailing slash: invitation links, Google redirect, CSRF origin | http://localhost:8080 |
+| ADMIN_EMAILS | Comma-separated emails that become admins on their first Google sign-in | |
+| GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET | Google OAuth client; redirect URI `<BASE_URL>/auth/google/callback`. Empty disables Google sign-in | |
+| COOKIE_SECURE | Send the session cookie over HTTPS only | true |
+| SESSION_TTL | Maximum session lifetime | 168h |
+| SESSION_IDLE_TIMEOUT | Sign out after this long without activity | 24h |
+
+Without Google, create the first admin with `timesheet-filler -invite-admin <email>`.
 
 #### Email Configuration
 
@@ -181,6 +206,8 @@ Health check endpoints:
 
 ```bash
 go test ./...
+# The auth tests also need a throwaway PostgreSQL database; they are skipped otherwise.
+TEST_DATABASE_URL=postgres://tsf:tsf@localhost:55432/tsf_test go test ./internal/auth/
 ```
 
 ### Building the Application

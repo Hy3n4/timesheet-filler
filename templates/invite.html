@@ -1,0 +1,31 @@
+{{define "title"}}{{t "invite_title"}}{{end}}
+
+{{define "content"}}
+<h1>{{t "invite_title"}}</h1>
+
+<div class="mx-auto text-start" style="max-width: 420px;">
+    <p>{{t "invite_for"}} <strong>{{.Data.Email}}</strong></p>
+    {{if .Data.GoogleEnabled}}
+    <a href="/auth/google?invite={{.Data.Token}}" class="btn btn-outline-dark btn-lg w-100 mb-2">{{t "login_google"}}</a>
+    <p class="small text-muted">{{t "invite_google_help"}}</p>
+    <div class="text-center text-muted small mb-3">{{t "login_or"}}</div>
+    {{end}}
+    <form action="/invite/{{.Data.Token}}" method="post">
+        <div class="mb-3">
+            <label for="display_name" class="form-label">{{t "invite_name"}}</label>
+            <input type="text" id="display_name" name="display_name" value="{{.Data.Name}}" required autocomplete="name" class="form-control">
+        </div>
+        <input type="email" name="email" value="{{.Data.Email}}" autocomplete="username" class="d-none" readonly>
+        <div class="mb-3">
+            <label for="password" class="form-label">{{t "invite_password"}}</label>
+            <input type="password" id="password" name="password" required minlength="12" autocomplete="new-password" class="form-control">
+            <div class="form-text">{{t "invite_password_help"}}</div>
+        </div>
+        <div class="mb-3">
+            <label for="password_confirm" class="form-label">{{t "invite_password_confirm"}}</label>
+            <input type="password" id="password_confirm" name="password_confirm" required minlength="12" autocomplete="new-password" class="form-control">
+        </div>
+        <button type="submit" class="btn btn-custom btn-lg w-100">{{t "invite_submit"}}</button>
+    </form>
+</div>
+{{end}}

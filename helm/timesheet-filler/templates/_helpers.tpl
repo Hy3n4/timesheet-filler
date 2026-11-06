@@ -130,3 +130,10 @@ Validate email configuration
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Secret with DATABASE_URL, SECRET_KEYS and the Google OAuth client.
+*/}}
+{{- define "timesheet-filler.authSecretName" -}}
+{{- .Values.auth.existingSecret | default (printf "%s-auth" (include "timesheet-filler.fullname" .)) }}
+{{- end }}

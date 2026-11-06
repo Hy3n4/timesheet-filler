@@ -52,7 +52,7 @@ func (h *EmailHandler) SendEmailHandler(w http.ResponseWriter, r *http.Request) 
 				Error: "Email service is not properly configured",
 			},
 		}
-		h.templateService.RenderTemplate(w, "download.html", tmplData, http.StatusServiceUnavailable, lang)
+		h.templateService.RenderTemplate(w, r, "download.html", tmplData, http.StatusServiceUnavailable, lang)
 		return
 	}
 
@@ -75,7 +75,7 @@ func (h *EmailHandler) SendEmailHandler(w http.ResponseWriter, r *http.Request) 
 		tmplData := models.BaseTemplateData{
 			Error: "Missing required fields",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -93,17 +93,17 @@ func (h *EmailHandler) SendEmailHandler(w http.ResponseWriter, r *http.Request) 
 				UserEmail:  userEmail,
 			},
 		}
-		h.templateService.RenderTemplate(w, "download.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "download.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
 	// Get the file data
-	fileEntry, ok := h.fileStore.GetTempFile(downloadToken)
+	fileEntry, ok := h.fileStore.GetTempFile(downloadToken, ownerID(r))
 	if !ok {
 		tmplData := models.BaseTemplateData{
 			Error: "File not found. It may have expired.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusNotFound, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusNotFound, lang)
 		return
 	}
 
@@ -152,7 +152,7 @@ func (h *EmailHandler) SendEmailHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Render the download template with email status
-	h.templateService.RenderTemplate(w, "download.html", tmplData, http.StatusOK, lang)
+	h.templateService.RenderTemplate(w, r, "download.html", tmplData, http.StatusOK, lang)
 }
 
 // Helper function to validate email

@@ -1,0 +1,110 @@
+{{define "title"}}{{t "admin_title"}}{{end}}
+
+{{define "content"}}
+<h1>{{t "admin_title"}}</h1>
+
+<div class="text-start">
+    {{if .Data.Info}}<div class="alert alert-success">{{.Data.Info}}</div>{{end}}
+    {{if .Data.InviteLink}}
+    <div class="alert alert-warning">
+        <div>{{t "admin_invite_link_once"}}</div>
+        <code id="invite-link" class="user-select-all">{{.Data.InviteLink}}</code>
+    </div>
+    {{end}}
+
+    <h2 class="h4 mt-4">{{t "admin_invite"}}</h2>
+    <form action="/admin/invites" method="post" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label for="invite-email" class="form-label">{{t "login_email"}}</label>
+            <input type="email" id="invite-email" name="email" required class="form-control">
+        </div>
+        <div class="col-md-4">
+            <label for="invite-eos" class="form-label">{{t "admin_eos_name"}}</label>
+            <input type="text" id="invite-eos" name="eos_name" placeholder="{{t "select_name_placeholder"}}" class="form-control">
+        </div>
+        <div class="col-md-2">
+            <label for="invite-role" class="form-label">{{t "admin_role"}}</label>
+            <select id="invite-role" name="role" class="form-select">
+                <option value="member">{{t "role_member"}}</option>
+                <option value="admin">{{t "role_admin"}}</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-custom w-100">{{t "admin_invite_submit"}}</button>
+        </div>
+    </form>
+    {{if not .Data.EmailEnabled}}<p class="small text-muted mt-1">{{t "admin_email_disabled"}}</p>{{end}}
+
+    {{if .Data.Invites}}
+    <h2 class="h4 mt-4">{{t "admin_pending_invites"}}</h2>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>{{t "login_email"}}</th><th>{{t "admin_eos_name"}}</th><th>{{t "admin_role"}}</th><th>{{t "admin_expires"}}</th><th>{{t "admin_invited_by"}}</th><th></th></tr></thead>
+        <tbody>
+        {{range .Data.Invites}}
+        <tr>
+            <td>{{.Email}}</td><td>{{.EosName}}</td><td>{{.Role}}</td>
+            <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td><td>{{.InvitedBy}}</td>
+            <td class="text-end text-nowrap">
+                <form action="/admin/invites/{{.ID}}/renew" method="post" class="d-inline"><button class="btn btn-sm btn-outline-secondary">{{t "admin_invite_renew"}}</button></form>
+                <form action="/admin/invites/{{.ID}}/revoke" method="post" class="d-inline"><button class="btn btn-sm btn-outline-danger">{{t "admin_invite_revoke"}}</button></form>
+            </td>
+        </tr>
+        {{end}}
+        </tbody>
+    </table>
+    </div>
+    {{end}}
+
+    <h2 class="h4 mt-4">{{t "admin_users"}}</h2>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>{{t "login_email"}}</th><th>{{t "admin_login_method"}}</th><th>{{t "admin_eos_name"}}</th><th>{{t "admin_role"}}</th><th>{{t "admin_last_login"}}</th><th></th></tr></thead>
+        <tbody>
+        {{range .Data.Users}}
+        {{$self := eq .ID $.Data.SelfID}}
+        <tr class="{{if .Disabled}}text-muted{{end}}">
+            <td>{{.Email}}{{if .DisplayName}}<div class="small text-muted">{{.DisplayName}}</div>{{end}}{{if .Disabled}} <span class="badge bg-secondary">{{t "admin_disabled"}}</span>{{end}}</td>
+            <td>{{if .HasGoogle}}Google{{else}}{{t "admin_password"}}{{if .HasTOTP}} + 2FA{{else}} <span class="badge bg-warning text-dark">{{t "admin_no_2fa"}}</span>{{end}}{{end}}</td>
+            <td colspan="2">
+                <form id="user-{{.ID}}" action="/admin/users/{{.ID}}" method="post" class="d-flex gap-2">
+                    <input type="text" name="eos_name" value="{{.EosName}}" class="form-control form-control-sm" placeholder="{{t "select_name_placeholder"}}">
+                    <select name="role" class="form-select form-select-sm" style="max-width: 9rem;"{{if $self}} disabled{{end}}>
+                        <option value="member"{{if eq .Role "member"}} selected{{end}}>{{t "role_member"}}</option>
+                        <option value="admin"{{if eq .Role "admin"}} selected{{end}}>{{t "role_admin"}}</option>
+                    </select>
+                    {{if $self}}<input type="hidden" name="role" value="{{.Role}}">{{end}}
+                </form>
+            </td>
+            <td class="small">{{if .LastLoginAt}}{{.LastLoginAt.Format "2006-01-02 15:04"}}{{else}}–{{end}}</td>
+            <td class="text-end text-nowrap">
+                <button form="user-{{.ID}}" name="action" value="update" class="btn btn-sm btn-outline-primary">{{t "admin_save"}}</button>
+                {{if not $self}}
+                {{if .Disabled}}
+                <button form="user-{{.ID}}" name="action" value="enable" class="btn btn-sm btn-outline-secondary">{{t "admin_enable"}}</button>
+                {{else}}
+                <button form="user-{{.ID}}" name="action" value="disable" class="btn btn-sm btn-outline-secondary">{{t "admin_disable"}}</button>
+                {{end}}
+                {{if .HasTOTP}}<button form="user-{{.ID}}" name="action" value="reset_mfa" class="btn btn-sm btn-outline-warning" onclick="return confirm('{{t "admin_confirm_reset_mfa"}}')">{{t "admin_reset_mfa"}}</button>{{end}}
+                <button form="user-{{.ID}}" name="action" value="delete" class="btn btn-sm btn-outline-danger" onclick="return confirm('{{t "admin_confirm_delete"}}')">{{t "admin_delete"}}</button>
+                {{end}}
+            </td>
+        </tr>
+        {{end}}
+        </tbody>
+    </table>
+    </div>
+
+    <h2 class="h4 mt-4">{{t "admin_audit"}}</h2>
+    <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+    <table class="table table-sm small">
+        <thead><tr><th>{{t "admin_when"}}</th><th>{{t "admin_who"}}</th><th>{{t "admin_action"}}</th><th>{{t "admin_target"}}</th><th>IP</th></tr></thead>
+        <tbody>
+        {{range .Data.Audit}}
+        <tr><td class="text-nowrap">{{.At.Format "2006-01-02 15:04:05"}}</td><td>{{.Actor}}</td><td>{{.Action}}</td><td>{{.Target}}</td><td>{{.IP}}</td></tr>
+        {{end}}
+        </tbody>
+    </table>
+    </div>
+</div>
+{{end}}

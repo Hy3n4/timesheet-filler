@@ -118,6 +118,16 @@
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-12 col-md-8 col-lg-12">
+                {{if .Viewer}}
+                <div class="d-flex justify-content-end align-items-center gap-2 mb-2 small">
+                    <span class="text-muted">{{.Viewer.Email}}</span>
+                    {{if .Viewer.IsAdmin}}<a href="/admin" class="btn btn-sm btn-outline-secondary">{{t "nav_admin"}}</a>{{end}}
+                    <a href="/" class="btn btn-sm btn-outline-secondary">{{t "nav_timesheet"}}</a>
+                    <form action="/logout" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">{{t "nav_logout"}}</button>
+                    </form>
+                </div>
+                {{end}}
                 <div class="form-container text-center p-4 p-md-5">
                     <!-- Error Alert -->
                     {{if .Data}}
@@ -133,7 +143,7 @@
                     {{block "content" .}}{{end}}
 
                     <!-- Progress indicator -->
-                    {{if not (or (eq .CurrentPage "download") (eq .CurrentPage "error"))}}
+                    {{if or (eq .CurrentPage "upload") (eq .CurrentPage "select") (eq .CurrentPage "select_sheet") (eq .CurrentPage "edit") (not .CurrentPage)}}
                     <div class="progress-steps mb-4">
                         <div class="step {{if eq .CurrentPage "upload"}}active{{else if not .CurrentPage}}active{{end}}">
                             <div class="step-number">1</div>

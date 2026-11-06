@@ -35,12 +35,14 @@ func NewFileStore(expiryTime time.Duration, cleanupInterval time.Duration) *File
 	return fs
 }
 
-func (fs *FileStore) StoreFileData(data []byte, names []string, months []string, sheetName string) string {
+// StoreFileData keeps an upload for owner; only owner can read it back.
+func (fs *FileStore) StoreFileData(owner int64, data []byte, names []string, months []string, sheetName string) string {
 	startTime := time.Now()
 	token := utils.GenerateFileToken()
 
 	fs.fileMutex.Lock()
 	fs.fileData[token] = models.FileData{
+		Owner:     owner,
 		Data:      data,
 		Names:     names,
 		Months:    months,
@@ -56,20 +58,24 @@ func (fs *FileStore) StoreFileData(data []byte, names []string, months []string,
 	return token
 }
 
-func (fs *FileStore) GetFileData(token string) (models.FileData, bool) {
+func (fs *FileStore) GetFileData(token string, owner int64) (models.FileData, bool) {
 	fs.fileMutex.RLock()
 	data, ok := fs.fileData[token]
 	fs.fileMutex.RUnlock()
 
-	return data, ok
+	if !ok || data.Owner != owner {
+		return models.FileData{}, false
+	}
+	return data, true
 }
 
-func (fs *FileStore) StoreTempFile(data []byte, filename string) string {
+func (fs *FileStore) StoreTempFile(owner int64, data []byte, filename string) string {
 	startTime := time.Now()
 	token := utils.GenerateFileToken()
 
 	fs.tempFileMutex.Lock()
 	fs.tempFileData[token] = models.TempFileEntry{
+		Owner:     owner,
 		Data:      data,
 		Filename:  filename,
 		Timestamp: time.Now(),
@@ -81,29 +87,19 @@ func (fs *FileStore) StoreTempFile(data []byte, filename string) string {
 	m.RecordProcessingDuration(metrics.StageStorage, time.Since(startTime))
 	m.RecordFileSize(metrics.StageStorage, int64(len(data)))
 
-	log.Printf("Stored temporary file with token: %s, filename: %s, size: %d", token, filename, len(data))
+	log.Printf("Stored temporary file %s, size: %d", filename, len(data))
 	return token
 }
 
-func (fs *FileStore) GetTempFile(token string) (models.TempFileEntry, bool) {
+func (fs *FileStore) GetTempFile(token string, owner int64) (models.TempFileEntry, bool) {
 	fs.tempFileMutex.RLock()
 	data, ok := fs.tempFileData[token]
 	fs.tempFileMutex.RUnlock()
 
-	if !ok {
-		fs.tempFileMutex.Lock()
-		tokens := make([]string, 0, len(fs.tempFileData))
-		for k := range fs.tempFileData {
-			tokens = append(tokens, k)
-		}
-		fs.tempFileMutex.Unlock()
-
-		log.Printf("Available token: %v", token)
-	} else {
-		log.Printf("GetTempFile: Found token: %s, filename: %s, size: %d, age: %v", token, data.Filename, len(data.Data), time.Since(data.Timestamp))
+	if !ok || data.Owner != owner {
+		return models.TempFileEntry{}, false
 	}
-
-	return data, ok
+	return data, true
 }
 
 func (fs *FileStore) DeleteTempFile(token string) {

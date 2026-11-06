@@ -66,6 +66,40 @@ spec:
             - name: SHEET_NAME
               value: {{ .Values.app.sheetName | default "docházka správců týmu" | quote }}
 
+            # Authentication
+            - name: BASE_URL
+              value: {{ required "auth.baseUrl is required (public URL of the app)" .Values.auth.baseUrl | quote }}
+            - name: ADMIN_EMAILS
+              value: {{ join "," .Values.auth.adminEmails | quote }}
+            - name: COOKIE_SECURE
+              value: {{ .Values.auth.cookieSecure | quote }}
+            - name: SESSION_TTL
+              value: {{ .Values.auth.sessionTTL | quote }}
+            - name: SESSION_IDLE_TIMEOUT
+              value: {{ .Values.auth.sessionIdleTimeout | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timesheet-filler.authSecretName" . }}
+                  key: database-url
+            - name: SECRET_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timesheet-filler.authSecretName" . }}
+                  key: secret-keys
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timesheet-filler.authSecretName" . }}
+                  key: google-client-id
+                  optional: true
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timesheet-filler.authSecretName" . }}
+                  key: google-client-secret
+                  optional: true
+
             # Email configuration
             - name: EMAIL_ENABLED
               value: {{ .Values.email.enabled | quote }}

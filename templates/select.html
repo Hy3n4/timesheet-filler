@@ -12,10 +12,16 @@
                 {{range .Data.Names}}
                 <option value="{{.}}">{{.}}</option>
                 {{end}}
+                {{if .Data.CustomName}}
                 <option value="__manual__"{{if not .Data.Names}} selected{{end}}>{{t "add_custom_name"}}</option>
+                {{end}}
             </select>
         </div>
+        {{if .Data.CustomName}}
         <input type="text" id="name-manual" name="name_manual" class="form-control mt-2 d-none" autocomplete="off" placeholder="{{t "select_name_placeholder"}}">
+        {{else if not .Data.Names}}
+        <div class="alert alert-warning mt-2">{{t "auth_err_no_eos_name"}}</div>
+        {{end}}
     </div>
     <div class="mb-3 text-start">
         <div class="input-group">
@@ -37,6 +43,7 @@
 <script>
 document.querySelectorAll('.manual-toggle').forEach(function(select) {
     const input = document.getElementById(select.dataset.manual);
+    if (!input) return;
     function sync() {
         const manual = select.value === '__manual__';
         input.classList.toggle('d-none', !manual);

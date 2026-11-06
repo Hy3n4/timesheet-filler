@@ -19,6 +19,7 @@ type SelectSheetTemplateData struct {
 type SelectTemplateData struct {
 	BaseTemplateData
 	FileToken     string
+	CustomName    bool
 	Names         []string
 	Months        []string
 	DefaultPeriod string
@@ -58,6 +59,7 @@ type TableRow struct {
 }
 
 type FileData struct {
+	Owner     int64
 	Data      []byte
 	Names     []string
 	Months    []string
@@ -67,12 +69,14 @@ type FileData struct {
 
 type TemplateData struct {
 	Data        interface{}
+	Viewer      *Viewer
 	CurrentYear int
 	CurrentPage string
 	Language    string
 }
 
 type TempFileEntry struct {
+	Owner     int64
 	Data      []byte
 	Filename  string
 	Timestamp time.Time
@@ -90,4 +94,11 @@ type HealthCheckResponse struct {
 type EmailOptions struct {
 	SendToSelf bool
 	UserEmail  string
+}
+
+// Viewer is the signed-in user as shown in the page header.
+type Viewer struct {
+	Email   string
+	Name    string
+	IsAdmin bool
 }

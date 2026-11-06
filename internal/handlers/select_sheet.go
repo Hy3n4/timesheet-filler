@@ -49,12 +49,12 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 
 	log.Printf("User selected sheet: '%s'", selectedSheet)
 
-	fileData, ok := h.fileStore.GetFileData(fileToken)
+	fileData, ok := h.fileStore.GetFileData(fileToken, ownerID(r))
 	if !ok {
 		tmplData := models.BaseTemplateData{
 			Error: "Invalid session. Please re-upload your file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusBadRequest, lang)
 		return
 	}
 
@@ -65,7 +65,7 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 		tmplData := models.BaseTemplateData{
 			Error: "Failed to parse Excel file: " + err.Error(),
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusInternalServerError, lang)
 		return
 	}
 
@@ -81,14 +81,15 @@ func (h *SelectSheethandler) SelectSheetHandler(w http.ResponseWriter, r *http.R
 		defaultPeriod = periods[len(periods)-1]
 	}
 
-	fileToken = h.fileStore.StoreFileData(fileData.Data, names, periods, selectedSheet)
+	fileToken = h.fileStore.StoreFileData(ownerID(r), fileData.Data, names, periods, selectedSheet)
 
 	tmplData := models.SelectTemplateData{
 		FileToken:     fileToken,
-		Names:         names,
+		Names:         visibleNames(r, names),
+		CustomName:    isAdmin(r),
 		Months:        periods,
 		DefaultPeriod: defaultPeriod,
 	}
 
-	h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusOK, lang)
+	h.templateService.RenderTemplate(w, r, "select.html", tmplData, http.StatusOK, lang)
 }

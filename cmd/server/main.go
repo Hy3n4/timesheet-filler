@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	_ "embed"
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,11 +14,14 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"timesheet-filler/internal/auth"
 	"timesheet-filler/internal/config"
+	"timesheet-filler/internal/db"
 	"timesheet-filler/internal/handlers"
 	"timesheet-filler/internal/i18n"
 	"timesheet-filler/internal/metrics"
 	"timesheet-filler/internal/middleware"
+	"timesheet-filler/internal/secretbox"
 	"timesheet-filler/internal/services"
 )
 
@@ -24,8 +29,20 @@ var favicon []byte
 var emailService *services.EmailService
 
 func main() {
+	healthCheck := flag.Bool("health-check", false, "probe /healthz of a running server and exit")
+	inviteAdmin := flag.String("invite-admin", "", "create an admin invitation for this email, print its link and exit")
+	flag.Parse()
+
 	// Load configuration
 	cfg := config.New()
+
+	if *healthCheck {
+		resp, err := http.Get("http://127.0.0.1:" + cfg.Port + "/healthz")
+		if err != nil || resp.StatusCode != http.StatusOK {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	translator, err := i18n.NewTranslator("translations", "en")
 	if err != nil {
@@ -93,6 +110,47 @@ func main() {
 		)
 	}
 
+	if cfg.DatabaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+	keys, err := secretbox.ParseKeyring(cfg.SecretKeys)
+	if err != nil {
+		log.Fatalf("SECRET_KEYS: %v", err)
+	}
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 30*time.Second)
+	pool, err := db.Open(startCtx, cfg.DatabaseURL)
+	cancelStart()
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
+	defer pool.Close()
+
+	authService := auth.NewService(pool, keys, auth.Config{
+		BaseURL:            cfg.BaseURL,
+		GoogleClientID:     cfg.GoogleClientID,
+		GoogleClientSecret: cfg.GoogleClientSecret,
+		AdminEmails:        cfg.AdminEmails,
+		CookieSecure:       cfg.CookieSecure,
+		SessionTTL:         cfg.SessionTTL,
+		SessionIdle:        cfg.SessionIdle,
+	}, emailService)
+	if *inviteAdmin != "" {
+		token, err := authService.BootstrapAdminInvite(context.Background(), *inviteAdmin)
+		if err != nil {
+			log.Fatalf("invite-admin: %v", err)
+		}
+		fmt.Println(authService.InviteLink(token))
+		return
+	}
+	if !authService.GoogleEnabled() {
+		log.Println("Google sign-in is disabled (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set)")
+	}
+	go func() {
+		for range time.Tick(10 * time.Minute) {
+			authService.PurgeExpired(context.Background())
+		}
+	}()
+
 	// Initialize handlers
 	uploadHandler := handlers.NewUploadHandler(excelService, fileStore, templateService, cfg.MaxUploadSize)
 	selectSheetHandler := handlers.NewSelectSheetHandler(excelService, fileStore, templateService)
@@ -116,42 +174,73 @@ func main() {
 
 	// Application routes with middleware
 	baseMux.Handle("/", applyMiddlewares(
-		http.HandlerFunc(uploadHandler.UploadFormHandler),
+		auth.RequireUser(http.HandlerFunc(uploadHandler.UploadFormHandler)),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("uploadFormHandler")))
 
 	baseMux.Handle("/upload", applyMiddlewares(
-		http.HandlerFunc(uploadHandler.UploadFileHandler),
+		auth.RequireUser(http.HandlerFunc(uploadHandler.UploadFileHandler)),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("uploadFileHandler")))
 
 	baseMux.Handle("/edit", applyMiddlewares(
-		http.HandlerFunc(editHandler.EditHandler),
+		auth.RequireUser(http.HandlerFunc(editHandler.EditHandler)),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("editHandler")))
 
 	baseMux.Handle("/process", applyMiddlewares(
-		http.HandlerFunc(processHandler.ProcessHandler),
+		auth.RequireUser(http.HandlerFunc(processHandler.ProcessHandler)),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("processHandler")))
 
 	baseMux.Handle("/download/", applyMiddlewares(
-		http.HandlerFunc(downloadHandler.DownloadHandler),
+		auth.RequireUser(http.HandlerFunc(downloadHandler.DownloadHandler)),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("downloadHandler")))
 
 	baseMux.Handle("/select-sheet", applyMiddlewares(
-		http.HandlerFunc(selectSheetHandler.SelectSheetHandler),
+		auth.RequireUser(http.HandlerFunc(selectSheetHandler.SelectSheetHandler)),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("selectSheetHandler")))
 
 	baseMux.Handle("/send-email", applyMiddlewares(
-		http.HandlerFunc(emailhandler.SendEmailHandler),
+		auth.RequireUser(http.HandlerFunc(emailhandler.SendEmailHandler)),
 		loggingMiddleware.LogRequest,
 		metricsMiddleware.Instrument("sendEmailHandler")))
 
-	// Apply language middleware to all routes
-	rootHandler := languageMiddleware.DetectLanguage(baseMux)
+	authHandler := handlers.NewAuthHandler(authService, templateService)
+	authRoute := func(pattern string, h http.HandlerFunc) {
+		baseMux.Handle(pattern, applyMiddlewares(h, loggingMiddleware.LogRequest))
+	}
+	authRoute("GET /login", authHandler.LoginPage)
+	authRoute("POST /login", authHandler.Login)
+	authRoute("GET /login/2fa", authHandler.TwoFactorPage)
+	authRoute("POST /login/2fa", authHandler.TwoFactor)
+	authRoute("POST /login/2fa/email", authHandler.EmailCode)
+	authRoute("GET /account/2fa", authHandler.EnrollPage)
+	authRoute("POST /account/2fa", authHandler.Enroll)
+	authRoute("POST /logout", authHandler.Logout)
+	authRoute("GET /auth/google", authHandler.GoogleStart)
+	authRoute("GET /auth/google/callback", authHandler.GoogleCallback)
+	authRoute("GET /invite/{token}", authHandler.InvitePage)
+	authRoute("POST /invite/{token}", authHandler.AcceptInvite)
+
+	adminRoute := func(pattern string, h http.HandlerFunc) {
+		baseMux.Handle(pattern, applyMiddlewares(auth.RequireAdmin(h), loggingMiddleware.LogRequest))
+	}
+	adminRoute("GET /admin", authHandler.Admin)
+	adminRoute("POST /admin/invites", authHandler.CreateInvite)
+	adminRoute("POST /admin/invites/{id}/renew", authHandler.RenewInvite)
+	adminRoute("POST /admin/invites/{id}/revoke", authHandler.RevokeInvite)
+	adminRoute("POST /admin/users/{id}", authHandler.UpdateUser)
+
+	// Cross-origin form posts are rejected for every route; sessions are
+	// loaded before the language middleware so pages can show the user.
+	crossOrigin := http.NewCrossOriginProtection()
+	if err := crossOrigin.AddTrustedOrigin(cfg.BaseURL); err != nil {
+		log.Fatalf("BASE_URL: %v", err)
+	}
+	rootHandler := crossOrigin.Handler(authService.Middleware(languageMiddleware.DetectLanguage(baseMux)))
 
 	// Create servers
 	srv := &http.Server{

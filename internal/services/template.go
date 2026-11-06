@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/i18n"
 	"timesheet-filler/internal/models"
 )
@@ -23,7 +24,7 @@ func NewTemplateService(templateDir string, translator *i18n.Translator) *Templa
 	}
 }
 
-func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, tmplName string, data interface{}, statusCode int, lang string) error {
+func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, r *http.Request, tmplName string, data interface{}, statusCode int, lang string) error {
 	if lang == "" {
 		lang = "en"
 	}
@@ -50,6 +51,9 @@ func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, tmplName string
 		CurrentYear: time.Now().Year(),
 		CurrentPage: currentPage,
 		Language:    lang,
+	}
+	if v, ok := r.Context().Value(contextkeys.ViewerKey).(*models.Viewer); ok {
+		tmplData.Viewer = v
 	}
 
 	w.WriteHeader(statusCode)

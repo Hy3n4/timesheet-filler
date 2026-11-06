@@ -1,0 +1,24 @@
+{{define "title"}}{{t "login_title"}}{{end}}
+
+{{define "content"}}
+<h1>{{t "login_title"}}</h1>
+
+<div class="mx-auto text-start" style="max-width: 420px;">
+    {{if .Data.GoogleEnabled}}
+    <a href="/auth/google" class="btn btn-outline-dark btn-lg w-100 mb-3">{{t "login_google"}}</a>
+    <div class="text-center text-muted small mb-3">{{t "login_or"}}</div>
+    {{end}}
+    <form action="/login" method="post">
+        <div class="mb-3">
+            <label for="email" class="form-label">{{t "login_email"}}</label>
+            <input type="email" id="email" name="email" value="{{.Data.Email}}" required autocomplete="username" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">{{t "login_password"}}</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password" class="form-control">
+        </div>
+        <button type="submit" class="btn btn-custom btn-lg w-100">{{t "login_submit"}}</button>
+    </form>
+    <p class="text-muted small mt-3">{{t "login_invite_only"}}</p>
+</div>
+{{end}}

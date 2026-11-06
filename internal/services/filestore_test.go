@@ -15,7 +15,7 @@ func TestFileStore(t *testing.T) {
 	testMonths := []string{"1", "2"}
 
 	// Store the data
-	token := fileStore.StoreFileData(testData, testNames, testMonths, "")
+	token := fileStore.StoreFileData(1, testData, testNames, testMonths, "")
 
 	// Verify the token is not empty
 	if token == "" {
@@ -23,7 +23,7 @@ func TestFileStore(t *testing.T) {
 	}
 
 	// Retrieve the data
-	data, ok := fileStore.GetFileData(token)
+	data, ok := fileStore.GetFileData(token, 1)
 
 	// Verify the data was retrieved
 	if !ok {
@@ -45,10 +45,10 @@ func TestFileStore(t *testing.T) {
 
 	// Test temporary file storage
 	filename := "test.xlsx"
-	tempToken := fileStore.StoreTempFile(testData, filename)
+	tempToken := fileStore.StoreTempFile(1, testData, filename)
 
 	// Retrieve the temp file
-	tempFile, ok := fileStore.GetTempFile(tempToken)
+	tempFile, ok := fileStore.GetTempFile(tempToken, 1)
 
 	// Verify the temp file was retrieved
 	if !ok {
@@ -66,7 +66,7 @@ func TestFileStore(t *testing.T) {
 
 	// Test deletion of temp file
 	fileStore.DeleteTempFile(tempToken)
-	_, ok = fileStore.GetTempFile(tempToken)
+	_, ok = fileStore.GetTempFile(tempToken, 1)
 	if ok {
 		t.Error("Temp file should have been deleted")
 	}
@@ -76,8 +76,23 @@ func TestFileStore(t *testing.T) {
 	fileStore.CleanupExpired()
 
 	// Try to retrieve the expired data
-	_, ok = fileStore.GetFileData(token)
+	_, ok = fileStore.GetFileData(token, 1)
 	if ok {
 		t.Error("Data should have expired")
+	}
+}
+
+func TestFileStoreIsolatesOwners(t *testing.T) {
+	fileStore := NewFileStore(time.Hour, time.Hour)
+	token := fileStore.StoreFileData(1, []byte("upload"), nil, nil, "")
+	if _, ok := fileStore.GetFileData(token, 2); ok {
+		t.Error("another user read the upload")
+	}
+	report := fileStore.StoreTempFile(1, []byte("report"), "r.xlsx")
+	if _, ok := fileStore.GetTempFile(report, 2); ok {
+		t.Error("another user read the report")
+	}
+	if _, ok := fileStore.GetTempFile(report, 1); !ok {
+		t.Error("the owner lost the report")
 	}
 }

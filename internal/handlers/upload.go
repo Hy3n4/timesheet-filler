@@ -48,11 +48,11 @@ func (h *UploadHandler) UploadFormHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusMethodNotAllowed, lang)
 		return
 	}
 
-	h.templateService.RenderTemplate(w, "upload.html", nil, http.StatusOK, lang)
+	h.templateService.RenderTemplate(w, r, "upload.html", nil, http.StatusOK, lang)
 }
 
 func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +68,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Method Not Allowed",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusMethodNotAllowed, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusMethodNotAllowed, lang)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Bad Request: Unable to parse form data.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusBadRequest, lang)
 		log.Printf("Error parsing form data: %v", err)
 		return
 	}
@@ -88,7 +88,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Bad Request: Unable to retrieve file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusBadRequest, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusBadRequest, lang)
 		log.Printf("Error retrieving file: %v", err)
 		return
 	}
@@ -103,7 +103,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Internal Server Error: Unable to read file.",
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusInternalServerError, lang)
 		log.Printf("Error reading file: %v", err)
 		return
 	}
@@ -124,7 +124,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		if len(availableSheets) > 0 {
 			log.Printf("Sheet %q unusable (%v), offering %d alternatives", requestedSheet, err, len(availableSheets))
 
-			fileToken := h.fileStore.StoreFileData(fileData, nil, nil, "")
+			fileToken := h.fileStore.StoreFileData(ownerID(r), fileData, nil, nil, "")
 
 			tmplData := models.SelectSheetTemplateData{
 				BaseTemplateData: models.BaseTemplateData{},
@@ -132,7 +132,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 				RequestedSheet:   requestedSheet,
 				AvailableSheets:  availableSheets,
 			}
-			h.templateService.RenderTemplate(w, "select_sheet.html", tmplData, http.StatusOK, lang)
+			h.templateService.RenderTemplate(w, r, "select_sheet.html", tmplData, http.StatusOK, lang)
 			return
 		}
 
@@ -140,7 +140,7 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 		tmplData := models.BaseTemplateData{
 			Error: "Internal Server Error: Unable to parse Excel file: " + err.Error(),
 		}
-		h.templateService.RenderTemplate(w, "upload.html", tmplData, http.StatusInternalServerError, lang)
+		h.templateService.RenderTemplate(w, r, "upload.html", tmplData, http.StatusInternalServerError, lang)
 		return
 	}
 
@@ -157,16 +157,17 @@ func (h *UploadHandler) UploadFileHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	// Store the fileData along with names and months using a unique token
-	fileToken := h.fileStore.StoreFileData(fileData, names, periods, requestedSheet)
+	fileToken := h.fileStore.StoreFileData(ownerID(r), fileData, names, periods, requestedSheet)
 
 	// Prepare data for the template
 	tmplData := models.SelectTemplateData{
 		FileToken:     fileToken,
-		Names:         names,
+		Names:         visibleNames(r, names),
+		CustomName:    isAdmin(r),
 		Months:        periods,
 		DefaultPeriod: defaultPeriod,
 	}
 
 	// Serve the selection form
-	h.templateService.RenderTemplate(w, "select.html", tmplData, http.StatusOK, lang)
+	h.templateService.RenderTemplate(w, r, "select.html", tmplData, http.StatusOK, lang)
 }
