@@ -28,12 +28,12 @@
             <span class="input-group-text">{{t "select_month"}}</span>
             <select id="period" name="period" required class="form-select manual-toggle" data-manual="period-manual">
                 {{range .Data.Months}}
-                <option value="{{.}}" {{if eq $.Data.DefaultPeriod .}}selected{{end}}>{{if eq (slice . 5 6) "0"}}{{slice . 6}}{{else}}{{slice . 5}}{{end}}</option>
+                <option value="{{.}}" {{if eq $.Data.DefaultPeriod .}}selected{{end}}>{{periodLabel .}}</option>
                 {{end}}
                 <option value="__manual__"{{if not .Data.Months}} selected{{end}}>{{t "add_custom_month"}}</option>
             </select>
         </div>
-        <input type="month" id="period-manual" name="period_manual" class="form-control mt-2 d-none" value="{{.Data.DefaultPeriod}}">
+        <div id="period-manual" class="mt-2 d-none">{{template "period-picker" "period_manual"}}</div>
     </div>
     <button type="submit" class="btn btn-custom btn-lg w-100">{{t "btn_next"}}</button>
 </form>

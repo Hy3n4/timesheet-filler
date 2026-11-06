@@ -14,21 +14,9 @@
 <div class="text-center text-muted small my-3">{{t "login_or"}}</div>
 
 <form action="/eos/load" method="post" class="text-start">
-    <label for="eos-period" class="form-label">{{t "eos_load_title"}}</label>
-    <div class="input-group">
-        <input type="month" id="eos-period" name="period" required class="form-control">
-        <button type="submit" class="btn btn-outline-dark">{{t "eos_load"}}</button>
-    </div>
+    <label for="period-month" class="form-label">{{t "eos_load_title"}}</label>
+    {{template "period-picker" "period"}}
+    <button type="submit" class="btn btn-outline-dark w-100 mt-2">{{t "eos_load"}}</button>
     <div class="form-text"><a href="/account/eos">{{t "eos_manage"}}</a></div>
 </form>
-{{end}}
-
-{{define "scripts"}}
-<script>
-const period = document.getElementById('eos-period');
-if (!period.value) {
-    const now = new Date();
-    period.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-}
-</script>
 {{end}}

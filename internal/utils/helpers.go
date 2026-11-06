@@ -133,3 +133,12 @@ func TimeToSerial(hours, minutes, seconds int) float64 {
 	secondsInDay := 24 * 3600
 	return float64(totalSeconds) / float64(secondsInDay)
 }
+
+// DefaultPeriod is the month a timesheet is most likely filled for: the
+// previous month during the first days of a month, else the current one.
+func DefaultPeriod(now time.Time) (year int, month time.Month) {
+	if now.Day() <= 10 {
+		now = now.AddDate(0, 0, -now.Day())
+	}
+	return now.Year(), now.Month()
+}

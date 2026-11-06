@@ -322,8 +322,18 @@ func (c *Client) FetchMonth(ctx context.Context, bearer string, memberID int64, 
 	}, &m.Events); err != nil {
 		return nil, err
 	}
-	if err := c.list(ctx, bearer, "event-types", nil, &m.EventTypes); err != nil {
+	types, err := c.EventTypes(ctx, bearer)
+	if err != nil {
 		return nil, err
 	}
+	m.EventTypes = types
 	return m, nil
+}
+
+func (c *Client) EventTypes(ctx context.Context, bearer string) ([]EventType, error) {
+	var types []EventType
+	if err := c.list(ctx, bearer, "event-types", nil, &types); err != nil {
+		return nil, err
+	}
+	return types, nil
 }

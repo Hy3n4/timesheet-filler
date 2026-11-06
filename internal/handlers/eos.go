@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -150,7 +151,7 @@ func (h *EOSHandler) Load(w http.ResponseWriter, r *http.Request) {
 		h.uploadError(w, r, h.tr(r, "auth_err_no_eos_name"), http.StatusForbidden)
 		return
 	}
-	period := strings.TrimSpace(r.FormValue("period"))
+	period := formPeriod(r, "period")
 	year, month, err := utils.ParsePeriod(period)
 	if err != nil {
 		h.uploadError(w, r, h.tr(r, "eos_err_period"), http.StatusBadRequest)
@@ -182,4 +183,114 @@ func (h *EOSHandler) Load(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK, lang(r)); err != nil {
 		log.Printf("render edit.html: %v", err)
 	}
+}
+
+type filterChoice struct {
+	Value    string
+	Label    string
+	Included bool
+	Tracked  bool
+}
+
+type EOSFilterPage struct {
+	models.BaseTemplateData
+	Info       string
+	TypesError string
+	Purposes   []filterChoice
+	EventTypes []filterChoice
+}
+
+// FilterPage lets an admin choose which EOS event types and purposes count.
+// Types are listed live from EOS through the admin's own link; when that
+// fails, the names stored with the last saved filter are shown instead.
+func (h *EOSHandler) FilterPage(w http.ResponseWriter, r *http.Request) {
+	var data EOSFilterPage
+	if r.URL.Query().Get("saved") != "" {
+		data.Info = h.tr(r, "eos_filter_saved")
+	}
+	h.renderFilter(w, r, data, http.StatusOK)
+}
+
+func (h *EOSHandler) renderFilter(w http.ResponseWriter, r *http.Request, data EOSFilterPage, status int) {
+	ctx := r.Context()
+	f, err := h.links.Filter(ctx)
+	if err != nil {
+		http.Error(w, h.tr(r, "auth_err_generic"), http.StatusInternalServerError)
+		return
+	}
+	excludedPurpose := map[eos.Purpose]bool{}
+	for _, p := range f.ExcludedPurposes {
+		excludedPurpose[p] = true
+	}
+	for _, p := range eos.Purposes {
+		data.Purposes = append(data.Purposes, filterChoice{
+			Value: string(p), Label: h.tr(r, "purpose_"+string(p)), Included: !excludedPurpose[p],
+		})
+	}
+
+	excludedType := map[int64]bool{}
+	for _, t := range f.ExcludedEventTypes {
+		excludedType[t] = true
+	}
+	types, err := h.links.EventTypes(ctx, ownerID(r))
+	if err != nil {
+		if errors.Is(err, eoslink.ErrNotLinked) {
+			data.TypesError = h.tr(r, "eos_filter_link_needed")
+		} else {
+			data.TypesError = h.errText(r, err)
+		}
+		for id, name := range f.EventTypeNames {
+			types = append(types, eos.EventType{ID: id, Name: name})
+		}
+	}
+	sort.Slice(types, func(i, j int) bool { return types[i].ID < types[j].ID })
+	for _, t := range types {
+		data.EventTypes = append(data.EventTypes, filterChoice{
+			Value: strconv.FormatInt(t.ID, 10), Label: t.Name, Included: !excludedType[t.ID], Tracked: t.HasAttendance,
+		})
+	}
+	if err := h.templates.RenderTemplate(w, r, "eos_filter.html", data, status, lang(r)); err != nil {
+		log.Printf("render eos_filter.html: %v", err)
+	}
+}
+
+// SaveFilter stores the unchecked boxes as exclusions. Only the types shown
+// on the page (the "shown_type" fields) can be excluded, so a type EOS adds
+// later starts out included.
+func (h *EOSHandler) SaveFilter(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+	checked := map[string]bool{}
+	for _, v := range r.Form["type"] {
+		checked["type:"+v] = true
+	}
+	for _, v := range r.Form["purpose"] {
+		checked["purpose:"+v] = true
+	}
+	f := eos.Filter{EventTypeNames: map[int64]string{}}
+	for _, v := range r.Form["shown_type"] {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		f.EventTypeNames[id] = strings.TrimSpace(r.FormValue("type_name_" + v))
+		if !checked["type:"+v] {
+			f.ExcludedEventTypes = append(f.ExcludedEventTypes, id)
+		}
+	}
+	for _, p := range eos.Purposes {
+		if !checked["purpose:"+string(p)] {
+			f.ExcludedPurposes = append(f.ExcludedPurposes, p)
+		}
+	}
+	if err := h.links.SaveFilter(r.Context(), ownerID(r), f, auth.ClientIP(r)); err != nil {
+		var data EOSFilterPage
+		data.Error = h.errText(r, err)
+		h.renderFilter(w, r, data, http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin/eos?saved=1", http.StatusSeeOther)
 }

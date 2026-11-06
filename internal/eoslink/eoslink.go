@@ -316,6 +316,9 @@ func (s *Service) MonthRows(ctx context.Context, userID int64, year int, month t
 		if err != nil {
 			return nil, err
 		}
+		if m.Filter, err = s.Filter(ctx); err != nil {
+			return nil, err
+		}
 		rows, err := eos.BuildRows(*m)
 		if err != nil {
 			return nil, err

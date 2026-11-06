@@ -111,3 +111,24 @@ func TestBuildRowsRejectsUnparsableTimes(t *testing.T) {
 	_, err := BuildRows(m)
 	assert.Error(t, err)
 }
+
+func TestFilterLeavesOutExcludedTypesAndPurposes(t *testing.T) {
+	m := october()
+	m.Filter = Filter{ExcludedEventTypes: []int64{3}, ExcludedPurposes: []Purpose{PurposeApplication}}
+	rows, err := BuildRows(m)
+	require.NoError(t, err)
+	var ids []int64
+	for _, r := range rows {
+		ids = append(ids, r.Event.ID)
+	}
+	assert.Equal(t, []int64{1, 2, 8, 11, 3, 10, 7}, ids, "Jiná (4) and the application (9) are gone")
+
+	m.Filter = Filter{ExcludedEventTypes: []int64{1}}
+	rows, err = BuildRows(m)
+	require.NoError(t, err)
+	ids = nil
+	for _, r := range rows {
+		ids = append(ids, r.Event.ID)
+	}
+	assert.Equal(t, []int64{8, 9, 11, 10, 4}, ids, "without trainings the coached team still makes 11 possible")
+}

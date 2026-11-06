@@ -322,3 +322,22 @@ func TestPeriodForMonth(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultPeriod(t *testing.T) {
+	for _, tc := range []struct {
+		now   string
+		year  int
+		month time.Month
+	}{
+		{"2026-11-06", 2026, time.October},
+		{"2026-11-11", 2026, time.November},
+		{"2027-01-03", 2026, time.December},
+		{"2026-03-10", 2026, time.February},
+	} {
+		now, _ := time.Parse("2006-01-02", tc.now)
+		y, m := DefaultPeriod(now)
+		if y != tc.year || m != tc.month {
+			t.Errorf("DefaultPeriod(%s) = %d-%d, want %d-%d", tc.now, y, m, tc.year, tc.month)
+		}
+	}
+}

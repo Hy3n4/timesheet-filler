@@ -19,6 +19,33 @@ const (
 	PurposeOrganizing  Purpose = "organizing"
 )
 
+// Purposes lists every purpose, in the order the admin page shows them.
+var Purposes = []Purpose{PurposeNone, PurposeNomination, PurposeApplication, PurposeOrganizing}
+
+// Filter leaves out events an admin does not want on timesheets. It lists
+// exclusions, so event types EOS adds later are included until excluded.
+type Filter struct {
+	ExcludedEventTypes []int64   `json:"excluded_event_types"`
+	ExcludedPurposes   []Purpose `json:"excluded_purposes"`
+	// EventTypeNames remembers the names shown when the filter was saved, so
+	// the admin page can list them while EOS is unreachable.
+	EventTypeNames map[int64]string `json:"event_type_names,omitempty"`
+}
+
+func (f Filter) Allows(e Event) bool {
+	for _, t := range f.ExcludedEventTypes {
+		if t == e.EventTypeID {
+			return false
+		}
+	}
+	for _, p := range f.ExcludedPurposes {
+		if p == e.Purpose {
+			return false
+		}
+	}
+	return true
+}
+
 type Range struct {
 	From string `json:"from"`
 	To   string `json:"to"`
@@ -94,4 +121,5 @@ type Month struct {
 	Attendances []Attendance
 	Events      []Event
 	EventTypes  []EventType
+	Filter      Filter
 }

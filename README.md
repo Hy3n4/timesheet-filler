@@ -91,6 +91,12 @@ The app calls only `auth/sessions`, `auth/otp`, `auth/tokens`,
 `management/events` and `event-types`. When EOS rejects the refresh token the
 link asks the user to sign in to EOS again.
 
+Admins choose under **Admin → EOS events on timesheets** (`/admin/eos`) which
+event purposes (nominations, applications, organizing calls such as
+"POŘÁDÁME", other) and event types count. Event types are listed live from EOS
+through the admin's own linked account; unchecked ones are left out of every
+"Load from EOS", and types EOS adds later are included until unchecked.
+
 | Variable | Description | Default |
 |----------|-------------|---------|
 | EOS_BASE_URL | EOS API base URL | https://eos.gorilyplzen.cz/api/v2/ |

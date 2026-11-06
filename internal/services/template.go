@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"timesheet-filler/internal/contextkeys"
 	"timesheet-filler/internal/i18n"
 	"timesheet-filler/internal/models"
+	"timesheet-filler/internal/utils"
 )
 
 type TemplateService struct {
@@ -32,6 +34,30 @@ func (ts *TemplateService) RenderTemplate(w http.ResponseWriter, r *http.Request
 	funcMap := template.FuncMap{
 		"t": func(key string) string {
 			return ts.translator.Translate(key, lang)
+		},
+		"monthName": func(m int) string {
+			return ts.translator.Translate(fmt.Sprintf("month_%d", m), lang)
+		},
+		// periodLabel renders "2026-10" as "October 2026".
+		"periodLabel": func(period string) string {
+			y, m, err := utils.ParsePeriod(period)
+			if err != nil {
+				return period
+			}
+			return fmt.Sprintf("%s %d", ts.translator.Translate(fmt.Sprintf("month_%d", m), lang), y)
+		},
+		"monthNumbers": func() []int { return []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12} },
+		"periodYears": func() []int {
+			y := time.Now().Year()
+			return []int{y - 1, y, y + 1}
+		},
+		"defaultYear": func() int {
+			y, _ := utils.DefaultPeriod(time.Now())
+			return y
+		},
+		"defaultMonth": func() int {
+			_, m := utils.DefaultPeriod(time.Now())
+			return int(m)
 		},
 	}
 

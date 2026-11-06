@@ -140,9 +140,24 @@ func (h *EditHandler) EditHandler(w http.ResponseWriter, r *http.Request) {
 const manualChoice = "__manual__"
 
 func manualOr(r *http.Request, field string) string {
-	value := r.FormValue(field)
-	if value == manualChoice {
-		value = r.FormValue(field + "_manual")
+	if r.FormValue(field) == manualChoice {
+		return formPeriod(r, field+"_manual")
 	}
-	return strings.TrimSpace(value)
+	return strings.TrimSpace(r.FormValue(field))
+}
+
+// formPeriod reads a "period-picker" (<name>_month and <name>_year selects) as
+// "YYYY-MM", falling back to a plain <name> field. A bad pick yields a value
+// utils.ParsePeriod rejects.
+func formPeriod(r *http.Request, name string) string {
+	month, year := r.FormValue(name+"_month"), r.FormValue(name+"_year")
+	if month == "" && year == "" {
+		return strings.TrimSpace(r.FormValue(name))
+	}
+	m, errM := strconv.Atoi(month)
+	y, errY := strconv.Atoi(year)
+	if errM != nil || errY != nil || m < 1 || m > 12 || y < 2000 || y > 2100 {
+		return "invalid"
+	}
+	return fmt.Sprintf("%04d-%02d", y, m)
 }

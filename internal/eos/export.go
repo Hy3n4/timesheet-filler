@@ -36,7 +36,7 @@ func (r Row) Attended() bool { return r.Possible == "" && r.Attendance.attended(
 // BuildRows joins the member's attendances with the month's events: tracked
 // events the member has a row for (saved or not), confirmed nominations, and
 // possible events (unconfirmed nominations, applications, actions of teams
-// the member coaches that month).
+// the member coaches that month), minus what m.Filter excludes.
 func BuildRows(m Month) ([]Row, error) {
 	mine := make(map[int64]*Attendance, len(m.Attendances))
 	for i := range m.Attendances {
@@ -74,6 +74,11 @@ func BuildRows(m Month) ([]Row, error) {
 
 	var rows []Row
 	for _, d := range month {
+		// Excluded events still count above when deciding which teams the
+		// member coaches; they are only left out of the rows.
+		if !m.Filter.Allows(d.event) {
+			continue
+		}
 		a := mine[d.event.ID]
 		row := Row{Event: d.event, Attendance: a, Start: d.start, End: d.end}
 		switch {

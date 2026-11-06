@@ -1,0 +1,40 @@
+{{define "title"}}{{t "eos_filter_title"}}{{end}}
+
+{{define "content"}}
+<h1>{{t "eos_filter_title"}}</h1>
+
+<div class="mx-auto text-start" style="max-width: 640px;">
+    {{if .Data.Info}}<div class="alert alert-success">{{.Data.Info}}</div>{{end}}
+    <p>{{t "eos_filter_help"}}</p>
+
+    <form action="/admin/eos" method="post">
+        <h2 class="h5 mt-3">{{t "eos_filter_purposes"}}</h2>
+        <div class="mb-3" id="purposes">
+            {{range .Data.Purposes}}
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="purpose" value="{{.Value}}" id="purpose-{{.Value}}"{{if .Included}} checked{{end}}>
+                <label class="form-check-label" for="purpose-{{.Value}}">{{.Label}}</label>
+            </div>
+            {{end}}
+        </div>
+
+        <h2 class="h5 mt-4">{{t "eos_filter_types"}}</h2>
+        {{if .Data.TypesError}}
+        <div class="alert alert-warning">{{.Data.TypesError}} <a href="/account/eos">{{t "eos_manage"}}</a></div>
+        {{end}}
+        <div class="mb-3" id="event-types">
+            {{range .Data.EventTypes}}
+            <div class="form-check">
+                <input type="hidden" name="shown_type" value="{{.Value}}">
+                <input type="hidden" name="type_name_{{.Value}}" value="{{.Label}}">
+                <input class="form-check-input" type="checkbox" name="type" value="{{.Value}}" id="type-{{.Value}}"{{if .Included}} checked{{end}}>
+                <label class="form-check-label" for="type-{{.Value}}">{{.Label}}{{if .Tracked}} <span class="badge bg-light text-dark border">{{t "eos_filter_tracked"}}</span>{{end}}</label>
+            </div>
+            {{end}}
+        </div>
+
+        <button type="submit" class="btn btn-custom btn-lg w-100">{{t "admin_save"}}</button>
+    </form>
+    <p class="mt-4"><a href="/admin">{{t "eos_filter_back"}}</a></p>
+</div>
+{{end}}

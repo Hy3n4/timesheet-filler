@@ -186,3 +186,14 @@
 </body>
 </html>
 {{end}}
+
+{{define "period-picker"}}
+<div class="input-group" id="{{.}}-picker">
+    <select name="{{.}}_month" id="{{.}}-month" class="form-select" aria-label="{{t "select_month"}}">
+        {{$m := defaultMonth}}{{range monthNumbers}}<option value="{{.}}"{{if eq . $m}} selected{{end}}>{{monthName .}}</option>{{end}}
+    </select>
+    <select name="{{.}}_year" id="{{.}}-year" class="form-select" style="max-width: 8rem;" aria-label="{{t "select_year"}}">
+        {{$y := defaultYear}}{{range periodYears}}<option value="{{.}}"{{if eq . $y}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+</div>
+{{end}}

@@ -118,7 +118,7 @@ func setup(t *testing.T) (*Service, *fakeEOS, int64) {
 	t.Cleanup(pool.Close)
 	require.NoError(t, db.Migrate(ctx, pool))
 	_, err = pool.Exec(ctx, `TRUNCATE users, sessions, invites, oauth_states, recovery_codes, email_codes, audit_log,
-		eos_links, eos_pending_logins RESTART IDENTITY CASCADE`)
+		eos_links, eos_pending_logins, app_settings RESTART IDENTITY CASCADE`)
 	require.NoError(t, err)
 	var userID int64
 	require.NoError(t, pool.QueryRow(ctx,
@@ -276,4 +276,29 @@ func TestFailedLinksAreCapped(t *testing.T) {
 	}
 	_, err := s.Link(ctx, user, "coach@example.com", "right", "")
 	assert.ErrorIs(t, err, ErrTooManyTries)
+}
+
+func TestFilterIsStoredAndApplied(t *testing.T) {
+	s, _, user := setup(t)
+	ctx := context.Background()
+	f, err := s.Filter(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, eos.Filter{}, f, "nothing excluded until an admin saves a filter")
+
+	_, err = s.Link(ctx, user, "coach@example.com", "right", "")
+	require.NoError(t, err)
+	types, err := s.EventTypes(ctx, user)
+	require.NoError(t, err)
+	assert.Equal(t, []eos.EventType{{ID: 1, Name: "Trénink", HasAttendance: true}}, types)
+
+	saved := eos.Filter{ExcludedEventTypes: []int64{1}, ExcludedPurposes: []eos.Purpose{eos.PurposeOrganizing},
+		EventTypeNames: map[int64]string{1: "Trénink"}}
+	require.NoError(t, s.SaveFilter(ctx, user, saved, ""))
+	got, err := s.Filter(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, saved, got)
+
+	rows, err := s.MonthRows(ctx, user, 2026, 10)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "the only event is a training, which is now excluded")
 }

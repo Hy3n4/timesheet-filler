@@ -241,6 +241,8 @@ func main() {
 		baseMux.Handle(pattern, applyMiddlewares(auth.RequireAdmin(h), loggingMiddleware.LogRequest))
 	}
 	adminRoute("GET /admin", authHandler.Admin)
+	adminRoute("GET /admin/eos", eosHandler.FilterPage)
+	adminRoute("POST /admin/eos", eosHandler.SaveFilter)
 	adminRoute("POST /admin/invites", authHandler.CreateInvite)
 	adminRoute("POST /admin/invites/{id}/renew", authHandler.RenewInvite)
 	adminRoute("POST /admin/invites/{id}/revoke", authHandler.RevokeInvite)
