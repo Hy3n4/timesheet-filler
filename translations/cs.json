@@ -196,5 +196,7 @@
   "select_sheet_title": "Vyberte list",
   "sheet_not_found": "Soubor neobsahuje list s názvem",
   "sheet": "List",
-  "continue": "Pokračovat"
+  "continue": "Pokračovat",
+  "eos_loading": "Načítám vaši docházku z EOS…",
+  "eos_linking": "Přihlašuji se do EOS…"
 }

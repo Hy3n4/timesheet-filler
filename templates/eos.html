@@ -25,14 +25,15 @@
     {{end}}
 
     {{if .Data.PendingOTP}}
-    <form action="/account/eos/otp" method="post" class="mb-3">
+    <form action="/account/eos/otp" method="post" class="mb-3" data-loading>
         <label for="otp" class="form-label">{{t "eos_otp"}}</label>
         <input type="text" id="otp" name="otp" required autofocus autocomplete="one-time-code" inputmode="numeric" class="form-control form-control-lg text-center mb-2">
         <button type="submit" class="btn btn-primary w-100">{{t "twofa_submit"}}</button>
+        {{template "form-loading" "eos_linking"}}
     </form>
     {{else if or (not .Data.Link) (ne .Data.Link.Status "active")}}
     <p>{{t "eos_intro"}}</p>
-    <form action="/account/eos/link" method="post" autocomplete="off">
+    <form action="/account/eos/link" method="post" autocomplete="off" data-loading>
         <div class="mb-3">
             <label for="eos-email" class="form-label">{{t "eos_email"}}</label>
             <input type="email" id="eos-email" name="email" value="{{.Data.Email}}" required class="form-control" autocomplete="off">
@@ -43,6 +44,7 @@
             <div class="form-text">{{t "eos_password_help"}}</div>
         </div>
         <button type="submit" class="btn btn-primary btn-lg w-100">{{t "eos_link"}}</button>
+        {{template "form-loading" "eos_linking"}}
     </form>
     {{end}}
 

@@ -151,6 +151,26 @@ document.getElementById('theme-toggle').addEventListener('click', function () {
     try { localStorage.setItem('tabler-theme', next); } catch (e) {}
 });
 </script>
+<script>
+// Forms that wait on EOS show progress: the submit button turns into a
+// spinner (and can't be pressed twice) and the form's .form-loading block,
+// an indeterminate progress bar with a note, appears.
+function setFormLoading(form, loading) {
+    form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+        button.classList.toggle('btn-loading', loading);
+        button.disabled = loading;
+        if (loading) { button.setAttribute('aria-busy', 'true'); } else { button.removeAttribute('aria-busy'); }
+    });
+    form.querySelectorAll('.form-loading').forEach(function (el) { el.classList.toggle('d-none', !loading); });
+}
+document.querySelectorAll('form[data-loading]').forEach(function (form) {
+    form.addEventListener('submit', function () { setFormLoading(form, true); });
+});
+// Coming back with the Back button restores the page from cache; reset it.
+window.addEventListener('pageshow', function (e) {
+    if (e.persisted) { document.querySelectorAll('form[data-loading]').forEach(function (f) { setFormLoading(f, false); }); }
+});
+</script>
 {{block "scripts" .}}{{end}}
 </body>
 </html>
@@ -164,5 +184,12 @@ document.getElementById('theme-toggle').addEventListener('click', function () {
     <select name="{{.}}_year" id="{{.}}-year" class="form-select" style="max-width: 8rem;" aria-label="{{t "select_year"}}">
         {{$y := defaultYear}}{{range periodYears}}<option value="{{.}}"{{if eq . $y}} selected{{end}}>{{.}}</option>{{end}}
     </select>
+</div>
+{{end}}
+
+{{define "form-loading"}}
+<div class="form-loading d-none mt-2" role="status" aria-live="polite">
+    <div class="progress progress-sm"><div class="progress-bar progress-bar-indeterminate"></div></div>
+    <div class="small text-secondary mt-1">{{t .}}</div>
 </div>
 {{end}}

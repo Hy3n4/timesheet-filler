@@ -196,5 +196,7 @@
   "select_sheet_title": "Select a sheet",
   "sheet_not_found": "The file has no sheet named",
   "sheet": "Sheet",
-  "continue": "Continue"
+  "continue": "Continue",
+  "eos_loading": "Loading your attendance from EOS…",
+  "eos_linking": "Signing in to EOS…"
 }

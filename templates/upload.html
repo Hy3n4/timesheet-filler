@@ -12,10 +12,11 @@
 
 <div class="hr-text">{{t "login_or"}}</div>
 
-<form action="/eos/load" method="post" class="text-start">
+<form action="/eos/load" method="post" class="text-start" data-loading>
     <label for="period-month" class="form-label">{{t "eos_load_title"}}</label>
     {{template "period-picker" "period"}}
     <button type="submit" class="btn btn-outline-primary w-100 mt-2"><i class="ti ti-cloud-download me-2"></i>{{t "eos_load"}}</button>
+    {{template "form-loading" "eos_loading"}}
     <div class="form-text"><a href="/account/eos">{{t "eos_manage"}}</a></div>
 </form>
 {{end}}
